@@ -4,9 +4,9 @@ from vmanage.auth import vManageSession
 
 from vmanage.entity import Server
 
-from vmanage.policy.centralized.dao import CentralizedPoliciesDAO,CentralizedDefinitionDAOFactory
+from vmanage.policy.centralized.dao import PoliciesDAO,DefinitionDAOFactory
 
-from vmanage.policy.centralized.model import CentralizedGUIPolicy,HubNSpokeDefinition
+from vmanage.policy.centralized.model import GUIPolicy,HubNSpokeDefinition
 from vmanage.policy.centralized.model import MeshDefinition,ControlDefinition
 from vmanage.policy.centralized.model import DefinitionMatchReferenceEntry,DefinitionMatchValuedEntry
 
@@ -41,23 +41,24 @@ def control_test(definition:ControlDefinition):
 def extract_policies(server,user,password):
     with vManageSession(server,secure=False) as session:
         if session.login(user,password):
-            centralized_policies = CentralizedPoliciesDAO(session)
-            definition_dao_fac = CentralizedDefinitionDAOFactory(session)
+            centralized_policies = PoliciesDAO(session)
+            definition_dao_fac = DefinitionDAOFactory(session)
             policies = centralized_policies.get_all()
             for policy in policies:
-                if isinstance(policy,CentralizedGUIPolicy):
-                    assembly = policy.definition["assembly"]
+                if isinstance(policy,GUIPolicy):
+                    assembly = policy.assembly
+                    print(assembly)
                     for raw_definition in assembly:
                         definition_type = raw_definition.get("type")
                         definition_id = raw_definition.get("definitionId")
                         if definition_type and definition_id:
                             definition = definition_dao_fac.from_type(definition_type).get_by_id(definition_id)
                             if isinstance(definition,HubNSpokeDefinition):
-                                hub_n_spoke_test(definition)
+                                pass
                             elif isinstance(definition,MeshDefinition):
-                                mesh_test(definition)
+                                pass
                             elif isinstance(definition,ControlDefinition):
-                                control_test(definition)
+                                pass
 
 def main():
     config = Configuration.from_file("./config.json")

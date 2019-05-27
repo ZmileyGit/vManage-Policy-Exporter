@@ -1,26 +1,27 @@
 from requests import Response
 from abc import abstractmethod
 from vmanage.auth import vManageSession
-from vmanage.dao import CollectionDAO,ModelDAO,APIListRequestHandler,JSONRequestHandler
-from vmanage.policy.centralized.model import CentralizedPolicyFactory
-from vmanage.policy.centralized.model import CentralizedDefinition,HubNSpokeDefinition
+from vmanage.tool import JSONRequestHandler
+from vmanage.dao import CollectionDAO,ModelDAO,APIListRequestHandler
+from vmanage.policy.centralized.model import PolicyFactory
+from vmanage.policy.centralized.model import Definition,HubNSpokeDefinition
 from vmanage.policy.centralized.model import MeshDefinition,ControlDefinition
 
-class CentralizedPoliciesDAO(CollectionDAO):
+class PoliciesDAO(CollectionDAO):
     RESOURCE = "/dataservice/template/policy/vsmart"
     def get_all(self):
-        url = self.session.server.url(CentralizedPoliciesDAO.RESOURCE)
+        url = self.session.server.url(PoliciesDAO.RESOURCE)
         response = self.session.get(url,allow_redirects=False)
-        return CentralizedPoliciesRequestHandler().handle(response)
+        return PoliciesRequestHandler().handle(response)
         
-class CentralizedPoliciesRequestHandler(APIListRequestHandler):
+class PoliciesRequestHandler(APIListRequestHandler):
     def handle_document(self,response:Response,document:dict):
         data = document["data"]
-        factory = CentralizedPolicyFactory()
+        factory = PolicyFactory()
         policies = [factory.from_dict(raw_policy) for raw_policy in data]
         return policies
 
-class CentralizedDefinitionDAOFactory:
+class DefinitionDAOFactory:
     def __init__(self,session:vManageSession):
         self.session = session
     def from_type(self,definition_type:str):
@@ -39,9 +40,9 @@ class CentralizedDefinitionDAOFactory:
         elif definition_type == CflowdDefinitionDAO.TYPE:
             return CflowdDefinitionDAO(self.session)
 
-class CentralizedDefinitionRequestHandler(JSONRequestHandler):
+class DefinitionRequestHandler(JSONRequestHandler):
     def handle_document_condition(self,response:Response,document:dict):
-        return CentralizedDefinition.ID_FIELD in document
+        return Definition.ID_FIELD in document
 
 class HubNSpokeDefinitionDAO(ModelDAO):
     TYPE = "hubAndSpoke"
@@ -52,7 +53,7 @@ class HubNSpokeDefinitionDAO(ModelDAO):
         response = self.session.get(url,allow_redirects=False)
         return HubNSpokeRequestHandler().handle(response)
 
-class HubNSpokeRequestHandler(CentralizedDefinitionRequestHandler):
+class HubNSpokeRequestHandler(DefinitionRequestHandler):
     def handle_document(self,response:Response,document:dict):
         return HubNSpokeDefinition.from_dict(document)
 
@@ -65,7 +66,7 @@ class MeshDefinitionDAO(ModelDAO):
         response = self.session.get(url,allow_redirects=False)
         return MeshRequestHandler().handle(response)
 
-class MeshRequestHandler(CentralizedDefinitionRequestHandler):
+class MeshRequestHandler(DefinitionRequestHandler):
     def handle_document(self,response:Response,document:dict):
         return MeshDefinition.from_dict(document)
 
@@ -78,7 +79,7 @@ class ControlDefinitionDAO(ModelDAO):
         response = self.session.get(url,allow_redirects=False)
         return ControlRequestHandler().handle(response)
 
-class ControlRequestHandler(CentralizedDefinitionRequestHandler):
+class ControlRequestHandler(DefinitionRequestHandler):
     def handle_document(self,response:Response,document:dict):
         return ControlDefinition.from_dict(document)
 
