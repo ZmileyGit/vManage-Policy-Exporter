@@ -49,7 +49,11 @@ class GUIPolicy(Policy):
         self.definition = definition
     @property
     def assembly(self):
-        return self.definition.get(GUIPolicy.ASSEMBLY_FIELD)
+        factory = DefinitionApplicationFactory()
+        return (
+            factory.from_dict(entry)
+            for entry in self.definition.get(GUIPolicy.ASSEMBLY_FIELD)
+        )
     def to_dict(self):
         result = super().to_dict()
         result[Policy.TYPE_FIELD] = GUIPolicy.TYPE_FIELD
@@ -79,15 +83,41 @@ class PolicyFactory(ModelFactory):
             return GUIPolicy.from_dict(document)
         return None
 
-class DefinitionApplicationElement(HelperModel):
+class DefinitionApplication(HelperModel):
     TYPE_FIELD = "type"
     ID_FIELD = "definitionId"
+    ENTRIES_FIELD = "entries"
     @property
     def type(self):
-        return self.definition.get(DefinitionApplicationElement.TYPE_FIELD)
+        return self.definition.get(DefinitionApplication.TYPE_FIELD)
     @property
     def id(self):
-        return self.definition.get(DefinitionApplicationElement.ID_FIELD)
+        return self.definition.get(DefinitionApplication.ID_FIELD)
+
+class ControlPolicyApplication(DefinitionApplication):
+    TYPE = "control"
+    @property
+    def entries(self):
+        return (ControlDirectionApplication(entry)
+                for entry in self.definition.get(DefinitionApplication.ENTRIES_FIELD))
+
+class ControlDirectionApplication(HelperModel):
+    DIRECTION_FIELD = "direction"
+    SITELIST_FIELD = "siteLists"
+    @property
+    def direction(self):
+        return self.definition.get(ControlDirectionApplication.DIRECTION_FIELD)
+    @property
+    def site_lists(self):
+        return self.definition.get(ControlDirectionApplication.SITELIST_FIELD)
+
+class DefinitionApplicationFactory:
+    def from_dict(self,document:dict):
+        doc_type = document.get(DefinitionApplication.TYPE_FIELD)
+        if doc_type == ControlPolicyApplication.TYPE:
+            return ControlPolicyApplication(document)
+        else:
+            return DefinitionApplication(document)
 
 class Definition(Model):
     NAME_FIELD = "name"
@@ -138,7 +168,10 @@ class SequencedDefinition(Definition):
         return result
     @property
     def sequences(self):
-        return [DefinitionSequenceElement(sequence) for sequence in self._sequences]
+        return (
+            DefinitionSequenceElement(sequence) 
+            for sequence in self._sequences
+        )
     @classmethod
     def from_dict(cls,document:dict):
         mid = document.get(Definition.ID_FIELD)
@@ -155,46 +188,153 @@ class DefinitionSequenceElement(HelperModel):
     MATCH_FIELD = "match"
     ACTIONS_FIELD = "actions"
     @property
-    def sequence_type(self):
+    def type(self):
         return self.definition.get(DefinitionSequenceElement.TYPE_FIELD)
     @property
     def match(self):
         return DefinitionMatchElement(self.definition.get(DefinitionSequenceElement.MATCH_FIELD))
     @property
     def actions(self):
-        return self.definition.get(DefinitionSequenceElement.ACTIONS_FIELD)
+        factory = DefinitionActionElementFactory()
+        return (
+            factory.from_dict(entry)
+            for entry in self.definition.get(DefinitionSequenceElement.ACTIONS_FIELD)
+        )
 
-class DefinitionMatchElement(HelperModel):
-    ENTRIES_FIELD = "entries"
+class DefinitionActionElement(HelperModel):
+    TYPE_FIELD = "type"
+    PARAMETER_FIELD = "parameter"
+    @property
+    def type(self):
+        return self.definition.get(DefinitionActionElement.TYPE_FIELD)
+
+class DefinitionMultiActionElement(DefinitionActionElement):
+    @property
+    def parameter(self):
+        factory = DefinitionActionEntryFactory()
+        return (
+            factory.from_dict(entry)
+            for entry in self.definition.get(DefinitionActionElement.PARAMETER_FIELD)
+        )
+
+class DefinitionUniActionElement(DefinitionActionElement):
+    @property
+    def parameter(self):
+        factory = DefinitionActionEntryFactory()
+        return factory.from_dict(self.definition.get(DefinitionActionElement.PARAMETER_FIELD))
+
+class DefinitionActionElementFactory:
+    def from_dict(self,document:dict):
+        parameter = document.get(DefinitionActionElement.PARAMETER_FIELD)
+        if isinstance(parameter,dict):
+            return DefinitionUniActionElement(document)
+        elif isinstance(parameter,list):
+            return DefinitionMultiActionElement(document)
+        return DefinitionActionElement(document)
+
+class DefinitionActionEntry(HelperModel):
     FIELDTYPE_FIELD = "field"
     VALUE_FIELD = "value"
     REFERENCE_FIELD = "ref"
     @property
+    def type(self):
+        return self.definition.get(DefinitionActionEntry.FIELDTYPE_FIELD)
+
+class DefinitionActionValuedEntry(DefinitionActionEntry):
+    @property
+    def value(self):
+        return self.definition.get(DefinitionActionEntry.VALUE_FIELD)
+
+class DefinitionActionServiceEntry(DefinitionActionValuedEntry):
+    TYPE = "service"
+    @property
+    def service(self):
+        factory = ActionServiceFactory()
+        return factory.from_dict(self.value)
+
+class DefinitionActionReferenceEntry(DefinitionActionEntry):
+    @property
+    def reference(self):
+        return self.definition.get(DefinitionActionEntry.REFERENCE_FIELD)
+
+class DefinitionActionEntryFactory:
+    def from_dict(self,document:dict):
+        action_type = document.get(DefinitionActionEntry.FIELDTYPE_FIELD)
+        if action_type == DefinitionActionServiceEntry.TYPE:
+            return DefinitionActionServiceEntry(document)
+        elif document.get(DefinitionActionEntry.REFERENCE_FIELD):
+            return DefinitionActionReferenceEntry(document)
+        elif document.get(DefinitionActionEntry.VALUE_FIELD):
+            return DefinitionActionValuedEntry(document)
+        return DefinitionActionEntry(document)
+
+class ActionService(HelperModel):
+    TYPE_FIELD = "type"
+    VPN_FIELD = "vpn"
+    TLOC_FIELD = "tloc"
+    TLOC_LIST_FIELD = "tlocList"
+    @property
+    def type(self):
+        return self.definition.get(ActionService.TYPE_FIELD)
+    @property
+    def vpn(self):
+        return self.definition.get(ActionService.VPN_FIELD)
+
+class ReferenceActionService(ActionService):
+    REFERENCE_VALUE = "ref"
+    @property
+    def tloc_list(self):
+        return self.definition.get(ActionService.TLOC_LIST_FIELD,{}).get(ReferenceActionService.REFERENCE_VALUE)
+
+class ValuedActionService(ActionService):
+    @property
+    def tloc(self):
+        self.definition.get(ActionService.TLOC_FIELD)
+
+class ActionServiceFactory:
+    def from_dict(self,document:dict):
+        if document.get(ActionService.TLOC_FIELD):
+            return ValuedActionService(document)
+        elif document.get(ActionService.TLOC_LIST_FIELD):
+            return ReferenceActionService(document)
+        return ActionService(document)
+
+class DefinitionMatchElement(HelperModel):
+    ENTRIES_FIELD = "entries"
+    @property
     def entries(self):
-        result = []
-        for entry in self.definition.get(DefinitionMatchElement.ENTRIES_FIELD,[]):
-            if entry.get(DefinitionMatchElement.REFERENCE_FIELD):
-                result.append(DefinitionMatchReferenceEntry(entry))
-            elif entry.get(DefinitionMatchElement.VALUE_FIELD):
-                result.append(DefinitionMatchValuedEntry(entry))
-            else:
-                result.append(DefinitionMatchEntry(entry))
-        return result
+        factory = DefinitionMatchEntryFactory()
+        return (
+            factory.from_dict(entry) 
+            for entry in self.definition.get(DefinitionMatchElement.ENTRIES_FIELD)
+        )
 
 class DefinitionMatchEntry(HelperModel):  
+    FIELDTYPE_FIELD = "field"
+    VALUE_FIELD = "value"
+    REFERENCE_FIELD = "ref"
     @property
-    def field_type(self):
-        return self.definition.get(DefinitionMatchElement.FIELDTYPE_FIELD)
+    def type(self):
+        return self.definition.get(DefinitionMatchEntry.FIELDTYPE_FIELD)
 
 class DefinitionMatchValuedEntry(DefinitionMatchEntry):
     @property
     def value(self):
-        return self.definition.get(DefinitionMatchElement.VALUE_FIELD)
+        return self.definition.get(DefinitionMatchEntry.VALUE_FIELD)
 
 class DefinitionMatchReferenceEntry(DefinitionMatchEntry):
     @property
     def reference(self):
-        return self.definition.get(DefinitionMatchElement.REFERENCE_FIELD)
+        return self.definition.get(DefinitionMatchEntry.REFERENCE_FIELD)
+
+class DefinitionMatchEntryFactory:
+    def from_dict(self,document:dict):
+        if document.get(DefinitionMatchEntry.REFERENCE_FIELD):
+            return DefinitionMatchReferenceEntry(document)
+        elif document.get(DefinitionMatchEntry.VALUE_FIELD):
+            return DefinitionMatchValuedEntry(document)
+        else:
+            return DefinitionMatchEntry(document)
 
 class HubNSpokeDefinition(CommonDefinition):
     DEFINITION_TYPE = "hubAndSpoke"
@@ -209,16 +349,20 @@ class HubNSpokeDefinition(CommonDefinition):
         return self.definition.get(HubNSpokeDefinition.VPNLIST_FIELD)
     @property
     def sub_definitions(self):
-        return [HubNSpokeSubDefinition(definition) 
-                for definition in self.definition.get(HubNSpokeDefinition.SUBDEFINITIONS_FIELD)]
+        return (
+            HubNSpokeSubDefinition(definition) 
+            for definition in self.definition.get(HubNSpokeDefinition.SUBDEFINITIONS_FIELD)
+        )
 
 class HubNSpokeSubDefinition(HelperModel):
     SPOKES_FIELD = "spokes"
     TLOCLIST_FIELD = "tlocList"
     @property
     def spokes(self):
-        return [HubNSpokeSpokeElement(definition)
-            for definition in self.definition.get(HubNSpokeSubDefinition.SPOKES_FIELD)]
+        return (
+            HubNSpokeSpokeElement(definition)
+            for definition in self.definition.get(HubNSpokeSubDefinition.SPOKES_FIELD)
+        )
     @property
     def tloc_list(self):
         return self.definition.get(HubNSpokeSubDefinition.TLOCLIST_FIELD)
@@ -231,8 +375,10 @@ class HubNSpokeSpokeElement(HelperModel):
         return self.definition.get(HubNSpokeSpokeElement.SITELIST_FIELD)
     @property
     def hubs(self):
-        return [HubNSpokeHubElement(definition)
-        for definition in self.definition.get(HubNSpokeSpokeElement.HUBS_FIELD)]
+        return (
+            HubNSpokeHubElement(definition)
+            for definition in self.definition.get(HubNSpokeSpokeElement.HUBS_FIELD)
+        )
 
 class HubNSpokeHubElement(HelperModel):
     SITELIST_FIELD = "siteList"
@@ -257,8 +403,8 @@ class MeshDefinition(CommonDefinition):
         return self.definition.get(MeshDefinition.VPNLIST_FIELD)
     @property
     def regions(self):
-        return [MeshRegionElement(definition)
-        for definition in self.definition.get(MeshDefinition.REGIONS_FIELD)]
+        return (MeshRegionElement(definition)
+        for definition in self.definition.get(MeshDefinition.REGIONS_FIELD))
     
 class MeshRegionElement(HelperModel):
     SITELISTS_FIELD = "siteLists"

@@ -9,6 +9,8 @@ from vmanage.policy.centralized.dao import PoliciesDAO,DefinitionDAOFactory
 from vmanage.policy.centralized.model import GUIPolicy,HubNSpokeDefinition
 from vmanage.policy.centralized.model import MeshDefinition,ControlDefinition
 from vmanage.policy.centralized.model import DefinitionMatchReferenceEntry,DefinitionMatchValuedEntry
+from vmanage.policy.centralized.model import DefinitionMultiActionElement,DefinitionUniActionElement
+from vmanage.policy.centralized.model import DefinitionActionReferenceEntry,DefinitionActionValuedEntry
 
 def hub_n_spoke_test(definition:HubNSpokeDefinition):
     print("VPN list: {0}".format(definition.vpn_list))
@@ -29,14 +31,22 @@ def mesh_test(definition:MeshDefinition):
 
 def control_test(definition:ControlDefinition):
     for sequence in definition.sequences:
-        print("Sequence type: {0}".format(sequence.sequence_type))
+        print("Sequence type: {0}".format(sequence.type))
+        print("---Matches---")
         for entry in sequence.match.entries:
-            if isinstance(entry,DefinitionMatchReferenceEntry):
-                print("Match entry: {0} | Match reference: {1}".format(entry.field_type,entry.reference))
-            elif isinstance(entry,DefinitionMatchValuedEntry):
-                print("Match entry: {0} | Match value: {1}".format(entry.field_type,entry.value))
-            else:
+            print(entry)
+        print("---Actions---")
+        for action in sequence.actions:
+            print("Action type: {0}".format(action.type))
+            if isinstance(action,DefinitionMultiActionElement):
+                for entry in action.parameter:
+                    print(entry)
+            elif isinstance(action,DefinitionUniActionElement):
+                entry = action.parameter
                 print(entry)
+            else:
+                print(action)
+            
 
 def extract_policies(server,user,password):
     with vManageSession(server,secure=False) as session:
@@ -47,18 +57,15 @@ def extract_policies(server,user,password):
             for policy in policies:
                 if isinstance(policy,GUIPolicy):
                     assembly = policy.assembly
-                    print(assembly)
-                    for raw_definition in assembly:
-                        definition_type = raw_definition.get("type")
-                        definition_id = raw_definition.get("definitionId")
-                        if definition_type and definition_id:
-                            definition = definition_dao_fac.from_type(definition_type).get_by_id(definition_id)
-                            if isinstance(definition,HubNSpokeDefinition):
-                                pass
-                            elif isinstance(definition,MeshDefinition):
-                                pass
-                            elif isinstance(definition,ControlDefinition):
-                                pass
+                    for application in assembly:
+                        print("\n{klass} | {0}".format(application.type,klass=type(application).__name__))
+                        definition = definition_dao_fac.from_type(application.type).get_by_id(application.id)
+                        if isinstance(definition,HubNSpokeDefinition):
+                            hub_n_spoke_test(definition)
+                        elif isinstance(definition,MeshDefinition):
+                            mesh_test(definition)
+                        elif isinstance(definition,ControlDefinition):
+                            control_test(definition)
 
 def main():
     config = Configuration.from_file("./config.json")

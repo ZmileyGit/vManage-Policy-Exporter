@@ -27,8 +27,8 @@ class Server:
 class HelperModel:
     def __init__(self,definition:dict):
         self.definition = definition
-    def __str__(self):
-        return str(self.definition)
+    def __repr__(self):
+        return "{klass}: {vars}".format(klass=type(self),vars=vars(self))
 
 class Model(ABC):
     def __init__(self,mid:str):
