@@ -1,4 +1,7 @@
 from vmanage.entity import HelperModel,Model,ModelFactory
+
+from vmanage.policy.centralized.tool import CentralizedReferences
+
 from json import JSONDecoder,JSONDecodeError
 
 class Policy(Model):
@@ -128,7 +131,7 @@ class Definition(Model):
         super().__init__(mid)
         self.name = name
         self.description = description
-    def to_dict(self):
+    def sto_dict(self):
         return {
             Definition.ID_FIELD : self.id,
             Definition.NAME_FIELD : self.name,
@@ -345,6 +348,23 @@ class HubNSpokeDefinition(CommonDefinition):
         result[Definition.TYPE_FIELD] = HubNSpokeDefinition.DEFINITION_TYPE
         return result
     @property
+    def references(self):
+        vpn_lists = set()
+        vpn_lists.add(self.vpn_list)
+
+        tloc_lists = set()
+        site_lists = set()
+        prefix_lists = set()
+        for subdef in self.sub_definitions:
+            tloc_lists.add(subdef.tloc_list)
+            for spoke in subdef.spokes:
+                site_lists.add(spoke.site_list)
+                for hub in spoke.hubs:
+                    site_lists.add(hub.site_list)
+                    for prefix in hub.prefix_lists:
+                        prefix_lists.add(prefix)
+        return CentralizedReferences(vpn_lists=vpn_lists,tloc_lists=tloc_lists,site_lists=site_lists,prefix_lists=prefix_lists)
+    @property
     def vpn_list(self):
         return self.definition.get(HubNSpokeDefinition.VPNLIST_FIELD)
     @property
@@ -361,7 +381,7 @@ class HubNSpokeSubDefinition(HelperModel):
     def spokes(self):
         return (
             HubNSpokeSpokeElement(definition)
-            for definition in self.definition.get(HubNSpokeSubDefinition.SPOKES_FIELD)
+            for definition in self.definition.get(HubNSpokeSubDefinition.SPOKES_FIELD,[])
         )
     @property
     def tloc_list(self):
@@ -377,7 +397,7 @@ class HubNSpokeSpokeElement(HelperModel):
     def hubs(self):
         return (
             HubNSpokeHubElement(definition)
-            for definition in self.definition.get(HubNSpokeSpokeElement.HUBS_FIELD)
+            for definition in self.definition.get(HubNSpokeSpokeElement.HUBS_FIELD,[])
         )
 
 class HubNSpokeHubElement(HelperModel):
@@ -388,7 +408,7 @@ class HubNSpokeHubElement(HelperModel):
         return self.definition.get(HubNSpokeHubElement.SITELIST_FIELD)
     @property
     def prefix_lists(self):
-        return self.definition.get(HubNSpokeHubElement.PREFIXLIST_FIELD)
+        return self.definition.get(HubNSpokeHubElement.PREFIXLIST_FIELD,[])
 
 class MeshDefinition(CommonDefinition):
     DEFINITION_TYPE = "mesh"
@@ -399,18 +419,28 @@ class MeshDefinition(CommonDefinition):
         result[Definition.TYPE_FIELD] = MeshDefinition.DEFINITION_TYPE
         return result
     @property
+    def references(self):
+        vpn_lists = set()
+        vpn_lists.add(self.vpn_list)
+
+        site_lists = set()
+        for region in self.regions:
+            for site in region.site_lists:
+                site_lists.add(site)
+        return CentralizedReferences(vpn_lists=vpn_lists,site_lists=site_lists)
+    @property
     def vpn_list(self):
         return self.definition.get(MeshDefinition.VPNLIST_FIELD)
     @property
     def regions(self):
         return (MeshRegionElement(definition)
-        for definition in self.definition.get(MeshDefinition.REGIONS_FIELD))
+        for definition in self.definition.get(MeshDefinition.REGIONS_FIELD,[]))
     
 class MeshRegionElement(HelperModel):
     SITELISTS_FIELD = "siteLists"
     @property
     def site_lists(self):
-        return self.definition.get(MeshRegionElement.SITELISTS_FIELD)
+        return self.definition.get(MeshRegionElement.SITELISTS_FIELD,[])
 
 class ControlDefinition(SequencedDefinition):
     DEFINITION_TYPE = "control"

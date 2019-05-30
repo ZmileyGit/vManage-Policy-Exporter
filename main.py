@@ -12,23 +12,6 @@ from vmanage.policy.centralized.model import DefinitionMatchReferenceEntry,Defin
 from vmanage.policy.centralized.model import DefinitionMultiActionElement,DefinitionUniActionElement
 from vmanage.policy.centralized.model import DefinitionActionReferenceEntry,DefinitionActionValuedEntry
 
-def hub_n_spoke_test(definition:HubNSpokeDefinition):
-    print("VPN list: {0}".format(definition.vpn_list))
-    for subdef in definition.sub_definitions:
-        print("TLOC list: {0}".format(subdef.tloc_list))
-        for spoke in subdef.spokes:
-            print("Spoke Site list: {0}".format(spoke.site_list))
-            for hub in spoke.hubs:
-                print("Hub Site list: {0}".format(hub.site_list))
-                for prefix in hub.prefix_lists:
-                    print("Hub Prefix list: {0}".format(prefix))
-
-def mesh_test(definition:MeshDefinition):
-    print("VPN list: {0}".format(definition.vpn_list))
-    for region in definition.regions:
-        for site in region.site_lists:
-            print("Region Site list: {0}".format(site))
-
 def control_test(definition:ControlDefinition):
     for sequence in definition.sequences:
         print("Sequence type: {0}".format(sequence.type))
@@ -61,9 +44,11 @@ def extract_policies(server,user,password):
                         print("\n{klass} | {0}".format(application.type,klass=type(application).__name__))
                         definition = definition_dao_fac.from_type(application.type).get_by_id(application.id)
                         if isinstance(definition,HubNSpokeDefinition):
-                            hub_n_spoke_test(definition)
+                            print(definition.definition)
+                            print(definition.references)
                         elif isinstance(definition,MeshDefinition):
-                            mesh_test(definition)
+                            print(definition.definition)
+                            print(definition.references)
                         elif isinstance(definition,ControlDefinition):
                             control_test(definition)
 
