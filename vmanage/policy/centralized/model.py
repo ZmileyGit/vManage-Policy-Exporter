@@ -1,6 +1,7 @@
 from vmanage.entity import HelperModel,Model,ModelFactory
 
 from vmanage.policy.centralized.tool import CentralizedReferences
+from vmanage.policy.tool import ReferenceType,accumulator
 
 from json import JSONDecoder,JSONDecodeError
 
@@ -131,7 +132,7 @@ class Definition(Model):
         super().__init__(mid)
         self.name = name
         self.description = description
-    def sto_dict(self):
+    def to_dict(self):
         return {
             Definition.ID_FIELD : self.id,
             Definition.NAME_FIELD : self.name,
@@ -162,18 +163,23 @@ class CommonDefinition(Definition):
 
 class SequencedDefinition(Definition):
     SEQUENCES_FIELD = "sequences"
-    def __init__(self,mid:str,name:str,description:str,sequences:dict):
+    def __init__(self,mid:str,name:str,description:str,definition:list):
         super().__init__(mid,name,description)
-        self._sequences = sequences
+        self.definition = definition
     def to_dict(self):
         result = super().to_dict()
-        result[SequencedDefinition.SEQUENCES_FIELD] = self._sequences
+        result[SequencedDefinition.SEQUENCES_FIELD] = self.definition
         return result
+    @accumulator(CentralizedReferences)
+    def references(self,accumulator:CentralizedReferences=None):
+        for sequence in self.sequences:
+            sequence.references(accumulator=accumulator)
+        return accumulator
     @property
     def sequences(self):
         return (
             DefinitionSequenceElement(sequence) 
-            for sequence in self._sequences
+            for sequence in self.definition
         )
     @classmethod
     def from_dict(cls,document:dict):
@@ -193,6 +199,12 @@ class DefinitionSequenceElement(HelperModel):
     @property
     def type(self):
         return self.definition.get(DefinitionSequenceElement.TYPE_FIELD)
+    @accumulator(CentralizedReferences)
+    def references(self,accumulator:CentralizedReferences=None):
+        self.match.references(accumulator=accumulator)
+        for action in self.actions:
+            action.references(accumulator=accumulator)
+        return accumulator
     @property
     def match(self):
         return DefinitionMatchElement(self.definition.get(DefinitionSequenceElement.MATCH_FIELD))
@@ -213,18 +225,29 @@ class DefinitionActionElement(HelperModel):
 
 class DefinitionMultiActionElement(DefinitionActionElement):
     @property
-    def parameter(self):
+    def parameters(self):
         factory = DefinitionActionEntryFactory()
         return (
             factory.from_dict(entry)
             for entry in self.definition.get(DefinitionActionElement.PARAMETER_FIELD)
         )
+    @accumulator(CentralizedReferences)
+    def references(self,accumulator:CentralizedReferences=None):
+        for param in self.parameters:
+            if isinstance(param,DefinitionActionReferenceEntry) or isinstance(param,DefinitionActionServiceEntry):
+                param.references(accumulator=accumulator)
+        return accumulator
 
 class DefinitionUniActionElement(DefinitionActionElement):
     @property
     def parameter(self):
         factory = DefinitionActionEntryFactory()
         return factory.from_dict(self.definition.get(DefinitionActionElement.PARAMETER_FIELD))
+    @accumulator(CentralizedReferences)
+    def references(self,accumulator:CentralizedReferences=None):
+        if isinstance(self.parameter,DefinitionActionReferenceEntry) or isinstance(self.parameter,DefinitionActionServiceEntry):
+            self.parameter.references(accumulator=accumulator)
+        return accumulator
 
 class DefinitionActionElementFactory:
     def from_dict(self,document:dict):
@@ -254,11 +277,17 @@ class DefinitionActionServiceEntry(DefinitionActionValuedEntry):
     def service(self):
         factory = ActionServiceFactory()
         return factory.from_dict(self.value)
+    @accumulator(CentralizedReferences)
+    def references(self,accumulator:CentralizedReferences=None):
+        if isinstance(self.service,ReferenceActionService):
+            self.service.references(accumulator=accumulator)
+        return accumulator
 
 class DefinitionActionReferenceEntry(DefinitionActionEntry):
-    @property
-    def reference(self):
-        return self.definition.get(DefinitionActionEntry.REFERENCE_FIELD)
+    @accumulator(CentralizedReferences)
+    def references(self,accumulator:CentralizedReferences=None):
+        accumulator.add_by_type(ReferenceType(self.type),self.definition.get(DefinitionActionEntry.REFERENCE_FIELD))
+        return accumulator
 
 class DefinitionActionEntryFactory:
     def from_dict(self,document:dict):
@@ -285,6 +314,10 @@ class ActionService(HelperModel):
 
 class ReferenceActionService(ActionService):
     REFERENCE_VALUE = "ref"
+    @accumulator(CentralizedReferences)
+    def references(self,accumulator:CentralizedReferences=None):
+        accumulator.tloc_lists.add(self.tloc_list)
+        return accumulator
     @property
     def tloc_list(self):
         return self.definition.get(ActionService.TLOC_LIST_FIELD,{}).get(ReferenceActionService.REFERENCE_VALUE)
@@ -311,6 +344,12 @@ class DefinitionMatchElement(HelperModel):
             factory.from_dict(entry) 
             for entry in self.definition.get(DefinitionMatchElement.ENTRIES_FIELD)
         )
+    @accumulator(CentralizedReferences)
+    def references(self,accumulator:CentralizedReferences=None):
+        for entry in self.entries:
+            if isinstance(entry,DefinitionMatchReferenceEntry):
+                entry.references(accumulator=accumulator)
+        return accumulator
 
 class DefinitionMatchEntry(HelperModel):  
     FIELDTYPE_FIELD = "field"
@@ -326,9 +365,10 @@ class DefinitionMatchValuedEntry(DefinitionMatchEntry):
         return self.definition.get(DefinitionMatchEntry.VALUE_FIELD)
 
 class DefinitionMatchReferenceEntry(DefinitionMatchEntry):
-    @property
-    def reference(self):
-        return self.definition.get(DefinitionMatchEntry.REFERENCE_FIELD)
+    @accumulator(CentralizedReferences)
+    def references(self,accumulator:CentralizedReferences=None):
+        accumulator.add_by_type(ReferenceType(self.type),self.definition.get(DefinitionMatchEntry.REFERENCE_FIELD))
+        return accumulator
 
 class DefinitionMatchEntryFactory:
     def from_dict(self,document:dict):
@@ -340,30 +380,19 @@ class DefinitionMatchEntryFactory:
             return DefinitionMatchEntry(document)
 
 class HubNSpokeDefinition(CommonDefinition):
-    DEFINITION_TYPE = "hubAndSpoke"
+    TYPE = "hubAndSpoke"
     SUBDEFINITIONS_FIELD = "subDefinitions"
     VPNLIST_FIELD = "vpnList"
     def to_dict(self):
         result = super().to_dict()
-        result[Definition.TYPE_FIELD] = HubNSpokeDefinition.DEFINITION_TYPE
+        result[Definition.TYPE_FIELD] = HubNSpokeDefinition.TYPE
         return result
-    @property
-    def references(self):
-        vpn_lists = set()
-        vpn_lists.add(self.vpn_list)
-
-        tloc_lists = set()
-        site_lists = set()
-        prefix_lists = set()
+    @accumulator(CentralizedReferences)
+    def references(self,accumulator:CentralizedReferences=None):
+        accumulator.vpn_lists.add(self.vpn_list)
         for subdef in self.sub_definitions:
-            tloc_lists.add(subdef.tloc_list)
-            for spoke in subdef.spokes:
-                site_lists.add(spoke.site_list)
-                for hub in spoke.hubs:
-                    site_lists.add(hub.site_list)
-                    for prefix in hub.prefix_lists:
-                        prefix_lists.add(prefix)
-        return CentralizedReferences(vpn_lists=vpn_lists,tloc_lists=tloc_lists,site_lists=site_lists,prefix_lists=prefix_lists)
+            subdef.references(accumulator=accumulator)
+        return accumulator
     @property
     def vpn_list(self):
         return self.definition.get(HubNSpokeDefinition.VPNLIST_FIELD)
@@ -386,6 +415,12 @@ class HubNSpokeSubDefinition(HelperModel):
     @property
     def tloc_list(self):
         return self.definition.get(HubNSpokeSubDefinition.TLOCLIST_FIELD)
+    @accumulator(CentralizedReferences)
+    def references(self,accumulator:CentralizedReferences=None):
+        accumulator.tloc_lists.add(self.tloc_list)
+        for spoke in self.spokes:
+            spoke.references(accumulator=accumulator)
+        return accumulator
 
 class HubNSpokeSpokeElement(HelperModel):
     SITELIST_FIELD = "siteList"
@@ -399,6 +434,12 @@ class HubNSpokeSpokeElement(HelperModel):
             HubNSpokeHubElement(definition)
             for definition in self.definition.get(HubNSpokeSpokeElement.HUBS_FIELD,[])
         )
+    @accumulator(CentralizedReferences)
+    def references(self,accumulator:CentralizedReferences=None):
+        accumulator.site_lists.add(self.site_list)
+        for hub in self.hubs:
+            hub.references(accumulator=accumulator)
+        return accumulator
 
 class HubNSpokeHubElement(HelperModel):
     SITELIST_FIELD = "siteList"
@@ -409,25 +450,26 @@ class HubNSpokeHubElement(HelperModel):
     @property
     def prefix_lists(self):
         return self.definition.get(HubNSpokeHubElement.PREFIXLIST_FIELD,[])
+    @accumulator(CentralizedReferences)
+    def references(self,accumulator:CentralizedReferences=None):
+        accumulator.site_lists.add(self.site_list)
+        accumulator.prefix_lists.update(self.prefix_lists)
+        return accumulator
 
 class MeshDefinition(CommonDefinition):
-    DEFINITION_TYPE = "mesh"
+    TYPE = "mesh"
     REGIONS_FIELD = "regions"
     VPNLIST_FIELD = "vpnList"
     def to_dict(self):
         result = super().to_dict()
-        result[Definition.TYPE_FIELD] = MeshDefinition.DEFINITION_TYPE
+        result[Definition.TYPE_FIELD] = MeshDefinition.TYPE
         return result
-    @property
-    def references(self):
-        vpn_lists = set()
-        vpn_lists.add(self.vpn_list)
-
-        site_lists = set()
+    @accumulator(CentralizedReferences)
+    def references(self,accumulator:CentralizedReferences=None):
+        accumulator.vpn_lists.add(self.vpn_list)
         for region in self.regions:
-            for site in region.site_lists:
-                site_lists.add(site)
-        return CentralizedReferences(vpn_lists=vpn_lists,site_lists=site_lists)
+            region.references(accumulator=accumulator)
+        return accumulator
     @property
     def vpn_list(self):
         return self.definition.get(MeshDefinition.VPNLIST_FIELD)
@@ -441,10 +483,14 @@ class MeshRegionElement(HelperModel):
     @property
     def site_lists(self):
         return self.definition.get(MeshRegionElement.SITELISTS_FIELD,[])
+    @accumulator(CentralizedReferences)
+    def references(self,accumulator:CentralizedReferences=None):
+        accumulator.site_lists.update(self.site_lists)
+        return accumulator
 
 class ControlDefinition(SequencedDefinition):
-    DEFINITION_TYPE = "control"
+    TYPE = "control"
     def to_dict(self):
         result = super().to_dict()
-        result[Definition.TYPE_FIELD] = ControlDefinition.DEFINITION_TYPE
+        result[Definition.TYPE_FIELD] = ControlDefinition.TYPE
         return result

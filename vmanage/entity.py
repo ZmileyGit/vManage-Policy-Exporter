@@ -33,8 +33,8 @@ class HelperModel:
 class Model(ABC):
     def __init__(self,mid:str):
         self.id = mid
-    def __str__(self):
-        return self.id
+    def __repr__(self):
+        return "{0} : {1}".format(type(self),vars(self))
     @abstractmethod
     def to_dict(self):
         pass

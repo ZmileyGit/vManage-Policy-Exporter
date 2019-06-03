@@ -41,3 +41,11 @@ class JSONRequestHandler(RequestHandler):
     @abstractmethod
     def handle_document(self,response:Response,document:dict):
         pass
+
+class APIListRequestHandler(JSONRequestHandler):
+    def handle_document_condition(self,response:Response,document:dict):
+        condition = [
+            response.status_code == 200,
+            "data" in document
+        ]
+        return all(condition)

@@ -1,8 +1,8 @@
 from requests import Response
 from abc import abstractmethod
 from vmanage.auth import vManageSession
-from vmanage.tool import JSONRequestHandler
-from vmanage.dao import CollectionDAO,ModelDAO,APIListRequestHandler
+from vmanage.tool import JSONRequestHandler,APIListRequestHandler
+from vmanage.dao import CollectionDAO,ModelDAO
 from vmanage.policy.centralized.model import PolicyFactory
 from vmanage.policy.centralized.model import Definition,HubNSpokeDefinition
 from vmanage.policy.centralized.model import MeshDefinition,ControlDefinition
@@ -25,11 +25,11 @@ class DefinitionDAOFactory:
     def __init__(self,session:vManageSession):
         self.session = session
     def from_type(self,definition_type:str):
-        if definition_type == HubNSpokeDefinitionDAO.TYPE:
+        if definition_type == HubNSpokeDefinition.TYPE:
             return HubNSpokeDefinitionDAO(self.session)
-        elif definition_type == MeshDefinitionDAO.TYPE:
+        elif definition_type == MeshDefinition.TYPE:
             return MeshDefinitionDAO(self.session)
-        elif definition_type == ControlDefinitionDAO.TYPE:
+        elif definition_type == ControlDefinition.TYPE:
             return ControlDefinitionDAO(self.session)
         elif definition_type == VPNMembershipDefinitionDAO.TYPE:
             return VPNMembershipDefinitionDAO(self.session)
@@ -45,7 +45,7 @@ class DefinitionRequestHandler(JSONRequestHandler):
         return Definition.ID_FIELD in document
 
 class HubNSpokeDefinitionDAO(ModelDAO):
-    TYPE = "hubAndSpoke"
+    MODEL = HubNSpokeDefinition
     RESOURCE = "/dataservice/template/policy/definition/hubandspoke"
     ID_RESOURCE = RESOURCE + "/{mid}"
     def get_by_id(self,mid:str):
@@ -58,7 +58,7 @@ class HubNSpokeRequestHandler(DefinitionRequestHandler):
         return HubNSpokeDefinition.from_dict(document)
 
 class MeshDefinitionDAO(ModelDAO):
-    TYPE = "mesh"
+    MODEL = MeshDefinition
     RESOURCE = "/dataservice/template/policy/definition/mesh"
     ID_RESOURCE = RESOURCE + "/{mid}"
     def get_by_id(self,mid:str):
@@ -71,7 +71,7 @@ class MeshRequestHandler(DefinitionRequestHandler):
         return MeshDefinition.from_dict(document)
 
 class ControlDefinitionDAO(ModelDAO):
-    TYPE = "control"
+    MODEL = ControlDefinition
     RESOURCE = "/dataservice/template/policy/definition/control"
     ID_RESOURCE = RESOURCE + "/{mid}"
     def get_by_id(self,mid:str):
