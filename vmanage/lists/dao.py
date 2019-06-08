@@ -1,7 +1,10 @@
 from requests import Response
 
+from vmanage.auth import vManageSession
 from vmanage.dao import ModelDAO
 from vmanage.tool import JSONRequestHandler
+
+from vmanage.policy.tool import ReferenceType
 
 from vmanage.lists.model import List,ApplicationList
 from vmanage.lists.model import ColorList,DataPrefixList
@@ -11,6 +14,30 @@ from vmanage.lists.model import SLAClass,TLOCList,VPNList
 class ListRequestHandler(JSONRequestHandler):
     def handle_document_condition(self,response:Response,document:dict):
         return List.ID_FIELD in document
+
+class ListDAOFactory:
+    def __init__(self,session:vManageSession):
+        self.session = session
+    def from_reference_type(self,ref_type:ReferenceType):
+        if ref_type == ReferenceType.APP_LIST:
+            return ApplicationListDAO(self.session)
+        elif ref_type == ReferenceType.COLOR_LIST:
+            return ColorListDAO(self.session)
+        elif ref_type == ReferenceType.DATA_PREFIX_LIST:
+            return DataPrefixListDAO(self.session)
+        elif ref_type == ReferenceType.POLICER:
+            return PolicerDAO(self.session)
+        elif ref_type == ReferenceType.PREFIX_LIST:
+            return PrefixListDAO(self.session)
+        elif ref_type == ReferenceType.SITE_LIST:
+            return SiteListDAO(self.session)
+        elif ref_type == ReferenceType.SLA_CLASS:
+            return SLAClassDAO(self.session)
+        elif ref_type == ReferenceType.TLOC_LIST:
+            return TLOCListDAO(self.session)
+        elif ref_type == ReferenceType.VPN_LIST:
+            return VPNListDAO(self.session)
+        raise ValueError("Unsupported Reference Type {0}".format(ref_type))
 
 class ApplicationListDAO(ModelDAO):
     MODEL = ApplicationList

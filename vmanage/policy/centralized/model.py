@@ -1,7 +1,7 @@
 from vmanage.entity import HelperModel,Model,ModelFactory
 
-from vmanage.policy.centralized.tool import CentralizedReferences
-from vmanage.policy.tool import ReferenceType,accumulator
+from vmanage.policy.centralized.tool import CentralizedReferences,CentralizedDefinitions,DefinitionType
+from vmanage.policy.tool import accumulator,ReferenceType
 
 from json import JSONDecoder,JSONDecodeError
 
@@ -51,6 +51,17 @@ class GUIPolicy(Policy):
     def __init__(self,mid:str,name:str,description:str,definition:dict):
         super().__init__(mid,name,description)
         self.definition = definition
+    @accumulator(CentralizedReferences)
+    def references(self,accumulator:CentralizedReferences=None):
+        for application in self.assembly:
+            if isinstance(application,DefinitionReferenceApplication):
+                application.references(accumulator=accumulator)
+        return accumulator
+    @accumulator(CentralizedDefinitions)
+    def definitions(self,accumulator:CentralizedDefinitions=None):
+        for application in self.assembly:
+            accumulator.add_by_type(application.type,application.id)
+        return accumulator
     @property
     def assembly(self):
         factory = DefinitionApplicationFactory()
@@ -60,7 +71,7 @@ class GUIPolicy(Policy):
         )
     def to_dict(self):
         result = super().to_dict()
-        result[Policy.TYPE_FIELD] = GUIPolicy.TYPE_FIELD
+        result[Policy.TYPE_FIELD] = GUIPolicy.POLICY_TYPE
         result[Policy.DEFINITION_FIELD] = self.definition
         return result
     @staticmethod
@@ -86,42 +97,6 @@ class PolicyFactory(ModelFactory):
         elif policy_type == GUIPolicy.POLICY_TYPE:
             return GUIPolicy.from_dict(document)
         return None
-
-class DefinitionApplication(HelperModel):
-    TYPE_FIELD = "type"
-    ID_FIELD = "definitionId"
-    ENTRIES_FIELD = "entries"
-    @property
-    def type(self):
-        return self.definition.get(DefinitionApplication.TYPE_FIELD)
-    @property
-    def id(self):
-        return self.definition.get(DefinitionApplication.ID_FIELD)
-
-class ControlPolicyApplication(DefinitionApplication):
-    TYPE = "control"
-    @property
-    def entries(self):
-        return (ControlDirectionApplication(entry)
-                for entry in self.definition.get(DefinitionApplication.ENTRIES_FIELD))
-
-class ControlDirectionApplication(HelperModel):
-    DIRECTION_FIELD = "direction"
-    SITELIST_FIELD = "siteLists"
-    @property
-    def direction(self):
-        return self.definition.get(ControlDirectionApplication.DIRECTION_FIELD)
-    @property
-    def site_lists(self):
-        return self.definition.get(ControlDirectionApplication.SITELIST_FIELD)
-
-class DefinitionApplicationFactory:
-    def from_dict(self,document:dict):
-        doc_type = document.get(DefinitionApplication.TYPE_FIELD)
-        if doc_type == ControlPolicyApplication.TYPE:
-            return ControlPolicyApplication(document)
-        else:
-            return DefinitionApplication(document)
 
 class Definition(Model):
     NAME_FIELD = "name"
@@ -155,7 +130,7 @@ class CommonDefinition(Definition):
         mid = document.get(Definition.ID_FIELD)
         name = document.get(Definition.NAME_FIELD)
         description = document.get(Definition.DESCRIPTION_FIELD)
-        definition = document.get(CommonDefinition.DEFINITION_FIELD)
+        definition = document.get(CommonDefinition.DEFINITION_FIELD,{})
         fields = [mid,name,description,definition]
         if all(fields):
             return cls(mid,name,description,definition)
@@ -203,7 +178,8 @@ class DefinitionSequenceElement(HelperModel):
     def references(self,accumulator:CentralizedReferences=None):
         self.match.references(accumulator=accumulator)
         for action in self.actions:
-            action.references(accumulator=accumulator)
+            if isinstance(action,DefinitionMultiActionElement) or isinstance(action,DefinitionUniActionElement):
+                action.references(accumulator=accumulator)
         return accumulator
     @property
     def match(self):
@@ -238,6 +214,17 @@ class DefinitionMultiActionElement(DefinitionActionElement):
                 param.references(accumulator=accumulator)
         return accumulator
 
+
+class DefinitionSLAClassActionElement(DefinitionMultiActionElement):
+    TYPE = "slaClass"
+    @property
+    def parameters(self):
+        factory = DefinitionSLAClassActionEntryFactory()
+        return (
+            factory.from_dict(entry)
+            for entry in self.definition.get(DefinitionActionElement.PARAMETER_FIELD)
+        )
+
 class DefinitionUniActionElement(DefinitionActionElement):
     @property
     def parameter(self):
@@ -252,7 +239,10 @@ class DefinitionUniActionElement(DefinitionActionElement):
 class DefinitionActionElementFactory:
     def from_dict(self,document:dict):
         parameter = document.get(DefinitionActionElement.PARAMETER_FIELD)
-        if isinstance(parameter,dict):
+        action_type = document.get(DefinitionActionElement.TYPE_FIELD)
+        if action_type == DefinitionSLAClassActionElement.TYPE:
+            return DefinitionSLAClassActionElement(document)
+        elif isinstance(parameter,dict):
             return DefinitionUniActionElement(document)
         elif isinstance(parameter,list):
             return DefinitionMultiActionElement(document)
@@ -288,6 +278,12 @@ class DefinitionActionReferenceEntry(DefinitionActionEntry):
     def references(self,accumulator:CentralizedReferences=None):
         accumulator.add_by_type(ReferenceType(self.type),self.definition.get(DefinitionActionEntry.REFERENCE_FIELD))
         return accumulator
+        
+class DefinitionSLAClassActionEntry(DefinitionActionReferenceEntry):
+    @accumulator(CentralizedReferences)
+    def references(self,accumulator:CentralizedReferences=None):
+        accumulator.add_by_type(ReferenceType.SLA_CLASS,self.definition.get(DefinitionActionEntry.REFERENCE_FIELD))
+        return accumulator
 
 class DefinitionActionEntryFactory:
     def from_dict(self,document:dict):
@@ -299,6 +295,13 @@ class DefinitionActionEntryFactory:
         elif document.get(DefinitionActionEntry.VALUE_FIELD):
             return DefinitionActionValuedEntry(document)
         return DefinitionActionEntry(document)
+
+class DefinitionSLAClassActionEntryFactory(DefinitionActionEntryFactory):
+    def from_dict(self,document:dict):
+        action_type = document.get(DefinitionActionEntry.FIELDTYPE_FIELD)
+        if action_type == "name":
+            return DefinitionSLAClassActionEntry(document)
+        return super().from_dict(document)
 
 class ActionService(HelperModel):
     TYPE_FIELD = "type"
@@ -380,12 +383,12 @@ class DefinitionMatchEntryFactory:
             return DefinitionMatchEntry(document)
 
 class HubNSpokeDefinition(CommonDefinition):
-    TYPE = "hubAndSpoke"
+    TYPE = DefinitionType.HUB_N_SPOKE
     SUBDEFINITIONS_FIELD = "subDefinitions"
     VPNLIST_FIELD = "vpnList"
     def to_dict(self):
         result = super().to_dict()
-        result[Definition.TYPE_FIELD] = HubNSpokeDefinition.TYPE
+        result[Definition.TYPE_FIELD] = HubNSpokeDefinition.TYPE.value
         return result
     @accumulator(CentralizedReferences)
     def references(self,accumulator:CentralizedReferences=None):
@@ -417,7 +420,8 @@ class HubNSpokeSubDefinition(HelperModel):
         return self.definition.get(HubNSpokeSubDefinition.TLOCLIST_FIELD)
     @accumulator(CentralizedReferences)
     def references(self,accumulator:CentralizedReferences=None):
-        accumulator.tloc_lists.add(self.tloc_list)
+        if self.tloc_list:
+            accumulator.tloc_lists.add(self.tloc_list)
         for spoke in self.spokes:
             spoke.references(accumulator=accumulator)
         return accumulator
@@ -457,12 +461,12 @@ class HubNSpokeHubElement(HelperModel):
         return accumulator
 
 class MeshDefinition(CommonDefinition):
-    TYPE = "mesh"
+    TYPE = DefinitionType.MESH
     REGIONS_FIELD = "regions"
     VPNLIST_FIELD = "vpnList"
     def to_dict(self):
         result = super().to_dict()
-        result[Definition.TYPE_FIELD] = MeshDefinition.TYPE
+        result[Definition.TYPE_FIELD] = MeshDefinition.TYPE.value
         return result
     @accumulator(CentralizedReferences)
     def references(self,accumulator:CentralizedReferences=None):
@@ -489,8 +493,191 @@ class MeshRegionElement(HelperModel):
         return accumulator
 
 class ControlDefinition(SequencedDefinition):
-    TYPE = "control"
+    TYPE = DefinitionType.CONTROL
     def to_dict(self):
         result = super().to_dict()
-        result[Definition.TYPE_FIELD] = ControlDefinition.TYPE
+        result[Definition.TYPE_FIELD] = ControlDefinition.TYPE.value
         return result
+
+class VPNMembershipDefinition(CommonDefinition):
+    TYPE = DefinitionType.VPN_MEMBERSHIP
+    SITES_FIELD = "sites"
+    def to_dict(self):
+        result = super().to_dict()
+        result[Definition.TYPE_FIELD] = VPNMembershipDefinition.TYPE.value
+        return result
+    @accumulator(CentralizedReferences)
+    def references(self,accumulator:CentralizedReferences=None):
+        for site in self.sites:
+            site.references(accumulator=accumulator)
+        return accumulator
+    @property
+    def sites(self):
+        return (
+            VPNMembershipSiteElement(site) 
+            for site in self.definition[VPNMembershipDefinition.SITES_FIELD]
+        )
+
+class VPNMembershipSiteElement(HelperModel):
+    SITELIST_FIELD = "siteList"
+    VPNLISTS_FIELD = "vpnList"
+    @accumulator(CentralizedReferences)
+    def references(self,accumulator:CentralizedReferences=None):
+        accumulator.site_lists.add(self.site_list)
+        accumulator.vpn_lists.update(self.vpn_lists)
+        return accumulator
+    @property
+    def site_list(self):
+        return self.definition[VPNMembershipSiteElement.SITELIST_FIELD]
+    @property
+    def vpn_lists(self):
+        return self.definition[VPNMembershipSiteElement.VPNLISTS_FIELD]
+
+class AppRouteDefinition(SequencedDefinition):
+    TYPE = DefinitionType.APP_ROUTE
+    def to_dict(self):
+        result = super().to_dict()
+        result[Definition.TYPE_FIELD] = AppRouteDefinition.TYPE.value
+        return result
+
+class DataDefinition(SequencedDefinition):
+    TYPE = DefinitionType.DATA
+    def to_dict(self):
+        result = super().to_dict()
+        result[Definition.TYPE_FIELD] = DataDefinition.TYPE.value
+        return result
+
+class CflowdDefinition(CommonDefinition):
+    TYPE = DefinitionType.CFLOWD
+    def to_dict(self):
+        result = super().to_dict()
+        result[Definition.TYPE_FIELD] = CflowdDefinition.TYPE.value
+        return result
+
+class DefinitionApplication(HelperModel):
+    TYPE_FIELD = "type"
+    ID_FIELD = "definitionId"
+    ENTRIES_FIELD = "entries"
+    @property
+    def type(self):
+        return DefinitionType(self.definition.get(DefinitionApplication.TYPE_FIELD))
+    @property
+    def id(self):
+        return self.definition.get(DefinitionApplication.ID_FIELD)
+
+class DefinitionReferenceApplication(DefinitionApplication):
+    @property
+    def entries(self):
+        return []
+    @accumulator(CentralizedReferences)
+    def references(self,accumulator:CentralizedReferences=None):
+        for entry in self.entries:
+            entry.references(accumulator=accumulator)
+        return accumulator
+
+class ControlPolicyApplication(DefinitionReferenceApplication):
+    DEFINITION = ControlDefinition
+    @property
+    def entries(self):
+        return (
+            ControlDirectionApplication(entry)
+            for entry in self.definition.get(DefinitionApplication.ENTRIES_FIELD)
+        )
+
+class ControlDirectionApplication(HelperModel):
+    DIRECTION_FIELD = "direction"
+    SITELISTS_FIELD = "siteLists"
+    @property
+    def direction(self):
+        return self.definition.get(ControlDirectionApplication.DIRECTION_FIELD)
+    @property
+    def site_lists(self):
+        return self.definition.get(ControlDirectionApplication.SITELISTS_FIELD,[])
+    @accumulator(CentralizedReferences)
+    def references(self,accumulator:CentralizedReferences=None):
+        accumulator.site_lists.update(self.site_lists)
+        return accumulator
+
+class DataPolicyApplication(DefinitionReferenceApplication):
+    DEFINITION = DataDefinition
+    @property
+    def entries(self):
+        return (
+            DataDirectionApplication(entry)
+            for entry in self.definition.get(DefinitionApplication.ENTRIES_FIELD)
+        )
+
+class DataDirectionApplication(HelperModel):
+    DIRECTION_FIELD = "direction"
+    SITELISTS_FIELD = "siteLists"
+    VPNLISTS_FIELD = "vpnLists"
+    @property
+    def direction(self):
+        return self.definition.get(DataDirectionApplication.DIRECTION_FIELD)
+    @property
+    def site_lists(self):
+        return self.definition.get(DataDirectionApplication.SITELISTS_FIELD,[])
+    @property
+    def vpn_lists(self):
+        return self.definition.get(DataDirectionApplication.VPNLISTS_FIELD,[])
+    @accumulator(CentralizedReferences)
+    def references(self,accumulator:CentralizedReferences=None):
+        accumulator.site_lists.update(self.site_lists)
+        accumulator.vpn_lists.update(self.vpn_lists)
+        return accumulator
+
+class CflowdPolicyApplication(DefinitionReferenceApplication):
+    DEFINITION = CflowdDefinition
+    @property
+    def entries(self):
+        return (
+            CflowdApplicationEntry(entry)
+            for entry in self.definition.get(DefinitionApplication.ENTRIES_FIELD)
+        )
+
+class CflowdApplicationEntry(HelperModel):
+    SITELISTS_FIELD = "siteLists"
+    @property
+    def site_lists(self):
+        return self.definition.get(CflowdApplicationEntry.SITELISTS_FIELD,[])
+    @accumulator(CentralizedReferences)
+    def references(self,accumulator:CentralizedReferences=None):
+        accumulator.site_lists.update(self.site_lists)
+        return accumulator
+
+class AppRoutePolicyApplication(DefinitionReferenceApplication):
+    DEFINITION = AppRouteDefinition
+    @property
+    def entries(self):
+        return (
+            AppRouteApplicationEntry(entry)
+            for entry in self.definition.get(DefinitionApplication.ENTRIES_FIELD)
+        )
+    
+class AppRouteApplicationEntry(HelperModel):
+    SITELISTS_FIELD = "siteLists"
+    VPNLISTS_FIELD = "vpnLists"
+    @property
+    def site_lists(self):
+        return self.definition.get(AppRouteApplicationEntry.SITELISTS_FIELD,[])
+    @property
+    def vpn_lists(self):
+        return self.definition.get(AppRouteApplicationEntry.VPNLISTS_FIELD,[])
+    @accumulator(CentralizedReferences)
+    def references(self,accumulator:CentralizedReferences=None):
+        accumulator.site_lists.update(self.site_lists)
+        accumulator.vpn_lists.update(self.vpn_lists)
+        return accumulator
+
+class DefinitionApplicationFactory:
+    def from_dict(self,document:dict):
+        doc_type = DefinitionType(document.get(DefinitionApplication.TYPE_FIELD))
+        if doc_type == ControlDefinition.TYPE:
+            return ControlPolicyApplication(document)
+        elif doc_type == DataDefinition.TYPE:
+            return DataPolicyApplication(document)
+        elif doc_type == CflowdDefinition.TYPE:
+            return CflowdPolicyApplication(document)
+        elif doc_type == AppRouteDefinition.TYPE:
+            return AppRoutePolicyApplication(document)
+        return DefinitionApplication(document)

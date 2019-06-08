@@ -1,4 +1,5 @@
 from vmanage.entity import Model
+from vmanage.lists.tool import ListType
 
 class List(Model):
     ID_FIELD = "listId"
@@ -29,64 +30,64 @@ class List(Model):
             return klass(mid,name,description,entries)
 
 class ApplicationList(List):
-    TYPE = "app"
+    TYPE = ListType.APP
     def to_dict(self):
         result = super().to_dict()
-        result[List.TYPE_FIELD] = ApplicationList.TYPE
+        result[List.TYPE_FIELD] = ApplicationList.TYPE.value
         return result
 
 class ColorList(List):
-    TYPE = "color"
+    TYPE = ListType.COLOR
     def to_dict(self):
         result = super().to_dict()
-        result[List.TYPE_FIELD] = ColorList.TYPE
+        result[List.TYPE_FIELD] = ColorList.TYPE.value
         return result
 
 class DataPrefixList(List):
-    TYPE = "dataPrefix"
+    TYPE = ListType.DATA_PREFIX
     def to_dict(self):
         result = super().to_dict()
-        result[List.TYPE_FIELD] = DataPrefixList.TYPE
+        result[List.TYPE_FIELD] = DataPrefixList.TYPE.value
         return result
 
 class Policer(List):
-    TYPE = "policer"
+    TYPE = ListType.POLICER
     def to_dict(self):
         result = super().to_dict()
-        result[List.TYPE_FIELD] = Policer.TYPE
+        result[List.TYPE_FIELD] = Policer.TYPE.value
         return result
     
 class PrefixList(List):
-    TYPE = "prefix"
+    TYPE = ListType.PREFIX
     def to_dict(self):
         result = super().to_dict()
-        result[List.TYPE_FIELD] = PrefixList.TYPE
+        result[List.TYPE_FIELD] = PrefixList.TYPE.value
         return result
     
 class SiteList(List):
-    TYPE = "site"
+    TYPE = ListType.SITE
     def to_dict(self):
         result = super().to_dict()
-        result[List.TYPE_FIELD] = SiteList.TYPE
+        result[List.TYPE_FIELD] = SiteList.TYPE.value
         return result
 
 class SLAClass(List):
-    TYPE = "sla"
+    TYPE = ListType.SLA
     def to_dict(self):
         result = super().to_dict()
-        result[List.TYPE_FIELD] = SLAClass.TYPE
+        result[List.TYPE_FIELD] = SLAClass.TYPE.value
         return result
 
 class TLOCList(List):
-    TYPE = "tloc"
+    TYPE = ListType.TLOC
     def to_dict(self):
         result = super().to_dict()
-        result[List.TYPE_FIELD] = TLOCList.TYPE
+        result[List.TYPE_FIELD] = TLOCList.TYPE.value
         return result
 
 class VPNList(List):
-    TYPE = "vpn"
+    TYPE = ListType.VPN
     def to_dict(self):
         result = super().to_dict()
-        result[List.TYPE_FIELD] = VPNList.TYPE
+        result[List.TYPE_FIELD] = VPNList.TYPE.value
         return result

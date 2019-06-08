@@ -11,13 +11,26 @@ class Configuration:
     USERNAME_PROMPT = "Username: "
     PASSWORD_FIELD = "password"
     PASSWORD_PROMPT = "Password: "
+    FILE_FIELD = "file"
+    DEFAULT_FILE = "policies.json"
+    FILE_PROMPT = "Export to({0}):".format(DEFAULT_FILE)
+    ENCODING_FIELD = "encoding"
+    DEFAULT_ENCODING = "UTF-8"
     HOST_PROMPT = "Host: "
     PORT_PROMPT = "Port({0}): ".format(Server.DEFAULT_PORT)
     INVALID_PORT_NUMBER_MESSAGE = "Please input a port number"
-    def __init__(self,server,username,password):
+    def __init__(self,server,username,password,work_file,encoding=DEFAULT_ENCODING):
         self._server = server
         self._username = username
         self._password = password
+        self._file = work_file
+        self.encoding = encoding
+    @property
+    def file(self):
+        if not self._file:
+            self._file = input(Configuration.FILE_PROMPT).strip()
+            self._file = self._file if len(self._file) else Configuration.DEFAULT_FILE
+        return self._file
     @property
     def username(self):
         if not self._username:
@@ -45,7 +58,12 @@ class Configuration:
         server = Server.from_dict(server)
         username = credentials.get(Configuration.USERNAME_FIELD)
         password = credentials.get(Configuration.PASSWORD_FIELD)
-        return Configuration(server,username,password)
+        work_file = document.get(Configuration.FILE_FIELD)
+        optionals = {}
+        encoding = document.get(Configuration.ENCODING_FIELD)
+        if encoding:
+            optionals[Configuration.ENCODING_FIELD] = encoding
+        return Configuration(server,username,password,work_file,**optionals)
     @staticmethod
     def from_file(path:str,**kwargs):
         json_config = {}

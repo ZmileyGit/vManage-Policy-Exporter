@@ -35,6 +35,10 @@ class Model(ABC):
         self.id = mid
     def __repr__(self):
         return "{0} : {1}".format(type(self),vars(self))
+    def __hash__(self):
+        return hash(self.id)
+    def __eq__(self,other):
+        return isinstance(other,Model) and self.id == other.id
     @abstractmethod
     def to_dict(self):
         pass
