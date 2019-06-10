@@ -38,7 +38,7 @@ class PolicyDAO(ModelDAO):
         url = self.session.server.url(self.resource())
         payload = policy.to_dict()
         del payload[Policy.ID_FIELD]
-        response = self.session.post(url,json=payload,allow_redirects=False)
+        response = self.session.post(url,json=payload)
         HTTPCodeRequestHandler(200,next_handler=APIErrorRequestHandler()).handle(response)
         policy.id = None
         return policy
@@ -75,7 +75,7 @@ class GUIPolicyDAO(PolicyDAO):
         payload = policy.to_dict()
         payload[Policy.DEFINITION_FIELD] = JSONDecoder().decode(payload[Policy.DEFINITION_FIELD])
         del payload[Policy.ID_FIELD]
-        response = self.session.post(url,json=payload,allow_redirects=False)
+        response = self.session.post(url,json=payload)
         HTTPCodeRequestHandler(200,next_handler=APIErrorRequestHandler()).handle(response)
         policy.id = None
         return policy
@@ -100,7 +100,7 @@ class PoliciesDAO(CollectionDAO):
     RESOURCE = "/dataservice/template/policy/vsmart"
     def get_all(self):
         url = self.session.server.url(PoliciesDAO.RESOURCE)
-        response = self.session.get(url,allow_redirects=False)
+        response = self.session.get(url)
         return PoliciesRequestHandler().handle(response)
         
 class PoliciesRequestHandler(APIListRequestHandler):
@@ -144,14 +144,14 @@ class DefinitionDAO(ModelDAO):
     DUPLICATE_DEFINITION_NAME_CODE = "POLICY0001"
     def get_by_id(self,mid:str):
         url = self.session.server.url(self.resource(mid=mid))
-        response = self.session.get(url,allow_redirects=False)
+        response = self.session.get(url)
         document = DefinitionRequestHandler(next_handler=APIErrorRequestHandler()).handle(response)
         return self.instance(document)
     def create(self,model:Definition):
         url = self.session.server.url(self.resource())
         payload = model.to_dict()
         del payload[Definition.ID_FIELD]
-        response = self.session.post(url,json=payload,allow_redirects=False)
+        response = self.session.post(url,json=payload)
         document = DefinitionCreationRequestHandler(next_handler=APIErrorRequestHandler()).handle(response)
         model.id = document[Definition.ID_FIELD]
         return model
