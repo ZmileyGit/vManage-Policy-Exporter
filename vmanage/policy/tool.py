@@ -55,3 +55,12 @@ def accumulator(klass):
             return func(*args,**kwargs)
         return wrapper
     return accumulator_decorator
+
+def factory_memoization(func):
+    cache = {}
+    def wrapper(*args,**kwargs):
+        typed = args[1]
+        if typed not in cache:
+            cache[typed] = func(*args,**kwargs)
+        return cache[typed]
+    return wrapper

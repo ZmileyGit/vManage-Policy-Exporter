@@ -7,10 +7,9 @@ from vmanage.tool import RequestHandler
 class vManageSession(Session):
     LOGIN_RESOURCE = "/j_security_check"
     LOGOUT_RESOURCE = "/logout"
-    def __init__(self,server:Server,secure:bool=True):
+    def __init__(self,server:Server):
         super().__init__()
         self.server = server
-        self.secure = secure
     def __exit__(self,*args):
         super().__exit__(*args)
         self.logout()
@@ -20,11 +19,11 @@ class vManageSession(Session):
             "j_password" : password
         }
         url = self.server.url(vManageSession.LOGIN_RESOURCE)
-        response = self.post(url,data=payload,verify=self.secure,allow_redirects=False)
+        response = self.post(url,data=payload,verify=self.server.secure,allow_redirects=False)
         return SuccessfulLoginHandler().handle(response)
     def logout(self):
         url = self.server.url(vManageSession.LOGOUT_RESOURCE)
-        response = self.get(url,verify=self.secure,allow_redirects=False)
+        response = self.get(url,verify=self.server.secure,allow_redirects=False)
         return LogoutHandler().handle(response)
 
 class SuccessfulLoginHandler(RequestHandler):

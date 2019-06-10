@@ -1,55 +1,62 @@
 from vmanage.entity import HelperModel,Model,ModelFactory
 
-from vmanage.policy.centralized.tool import CentralizedReferences,CentralizedDefinitions,DefinitionType
+from vmanage.policy.centralized.tool import CentralizedReferences,CentralizedDefinitions
+from vmanage.policy.centralized.tool import DefinitionType,PolicyType
 from vmanage.policy.tool import accumulator,ReferenceType
 
-from json import JSONDecoder,JSONDecodeError
+from json import JSONDecoder,JSONDecodeError,JSONEncoder
 
 class Policy(Model):
     NAME_FIELD = "policyName"
+    NAME_LIMIT = 32
     ID_FIELD = "policyId"
     DESCRIPTION_FIELD = "policyDescription"
     DEFINITION_FIELD = "policyDefinition"
     TYPE_FIELD = "policyType"
-    def __init__(self,mid:str,name:str,description:str):
+    def __init__(self,mid:str,name:str,policy_type:str,description:str):
         super().__init__(mid)
         self.name = name
+        self._type = policy_type
         self.description = description
+    @property
+    def type(self):
+        return PolicyType(self._type)
     def to_dict(self):
         return {
             Policy.ID_FIELD : self.id,
-            Policy.NAME_FIELD : self.name,
+            Policy.NAME_FIELD : self.name[:Policy.NAME_LIMIT],
+            Policy.TYPE_FIELD : self.type.value,
             Policy.DESCRIPTION_FIELD : self.description
         }
     def __str__(self):
         return "{mid} -> '{name}'".format(mid=self.id,name=self.name)
 
 class CLIPolicy(Policy):
-    POLICY_TYPE = "cli"
-    def __init__(self,mid:str,name:str,description:str,definition:str):
-        super().__init__(mid,name,description)
+    TYPE = PolicyType.CLI
+    def __init__(self,mid:str,name:str,policy_type:str,description:str,definition:str):
+        super().__init__(mid,name,policy_type,description)
         self.definition = definition
     def to_dict(self):
         result = super().to_dict()
-        result[Policy.TYPE_FIELD] = CLIPolicy.POLICY_TYPE
         result[Policy.DEFINITION_FIELD] = self.definition
         return result
     @staticmethod
     def from_dict(document:dict):
         mid = document.get(Policy.ID_FIELD)
         name = document.get(Policy.NAME_FIELD)
+        policy_type = document.get(Policy.TYPE_FIELD)
         description = document.get(Policy.DESCRIPTION_FIELD)
         definition = document.get(Policy.DEFINITION_FIELD)
-        fields = [mid,name,description,definition]
+        fields = [mid,name,policy_type,description,definition]
         if all(fields):
-            return CLIPolicy(mid,name,description,definition)
+            return CLIPolicy(mid,name,policy_type,description,definition)
         return None
 
 class GUIPolicy(Policy):
-    POLICY_TYPE = "feature"
+    TYPE = PolicyType.FEATURE
     ASSEMBLY_FIELD = "assembly"
-    def __init__(self,mid:str,name:str,description:str,definition:dict):
-        super().__init__(mid,name,description)
+    def __init__(self,mid:str,name:str,policy_type:str,description:str,definition:dict):
+        super().__init__(mid,name,policy_type,description)
         self.definition = definition
     @accumulator(CentralizedReferences)
     def references(self,accumulator:CentralizedReferences=None):
@@ -71,46 +78,52 @@ class GUIPolicy(Policy):
         )
     def to_dict(self):
         result = super().to_dict()
-        result[Policy.TYPE_FIELD] = GUIPolicy.POLICY_TYPE
-        result[Policy.DEFINITION_FIELD] = self.definition
+        result[Policy.DEFINITION_FIELD] = JSONEncoder().encode(self.definition)
         return result
     @staticmethod
     def from_dict(document:dict):
         mid = document.get(Policy.ID_FIELD)
         name = document.get(Policy.NAME_FIELD)
+        policy_type = document.get(Policy.TYPE_FIELD)
         description = document.get(Policy.DESCRIPTION_FIELD)
         definition = document.get(Policy.DEFINITION_FIELD)
         try:
             definition = JSONDecoder().decode(definition)
         except JSONDecodeError:
             definition = None
-        fields = [mid,name,description,definition]
+        fields = [mid,name,policy_type,description,definition]
         if all(fields):
-            return GUIPolicy(mid,name,description,definition)
+            return GUIPolicy(mid,name,policy_type,description,definition)
         return None
 
 class PolicyFactory(ModelFactory):
     def from_dict(self,document:dict):
-        policy_type = document.get(Policy.TYPE_FIELD)
-        if policy_type == CLIPolicy.POLICY_TYPE:
+        policy_type = PolicyType(document.get(Policy.TYPE_FIELD))
+        if policy_type == PolicyType.CLI:
             return CLIPolicy.from_dict(document)
-        elif policy_type == GUIPolicy.POLICY_TYPE:
+        elif policy_type == PolicyType.FEATURE:
             return GUIPolicy.from_dict(document)
         return None
 
 class Definition(Model):
     NAME_FIELD = "name"
+    NAME_LIMIT = 32
     ID_FIELD = "definitionId"
     DESCRIPTION_FIELD = "description"
     TYPE_FIELD = "type"
-    def __init__(self,mid:str,name:str,description:str):
+    def __init__(self,mid:str,name:str,def_type:str,description:str):
         super().__init__(mid)
         self.name = name
+        self._type = def_type
         self.description = description
+    @property
+    def type(self):
+        return DefinitionType(self._type)
     def to_dict(self):
         return {
             Definition.ID_FIELD : self.id,
-            Definition.NAME_FIELD : self.name,
+            Definition.NAME_FIELD : self.name[:Definition.NAME_LIMIT],
+            Definition.TYPE_FIELD : self.type.value,
             Definition.DESCRIPTION_FIELD : self.description
         }
     def __str__(self):
@@ -118,8 +131,8 @@ class Definition(Model):
 
 class CommonDefinition(Definition):
     DEFINITION_FIELD = "definition"
-    def __init__(self,mid:str,name:str,description:str,definition:dict):
-        super().__init__(mid,name,description)
+    def __init__(self,mid:str,name:str,def_type:str,description:str,definition:dict):
+        super().__init__(mid,name,def_type,description)
         self.definition = definition
     def to_dict(self):
         result = super().to_dict()
@@ -129,17 +142,18 @@ class CommonDefinition(Definition):
     def from_dict(cls,document:dict):
         mid = document.get(Definition.ID_FIELD)
         name = document.get(Definition.NAME_FIELD)
+        def_type = document.get(Definition.TYPE_FIELD)
         description = document.get(Definition.DESCRIPTION_FIELD)
         definition = document.get(CommonDefinition.DEFINITION_FIELD,{})
-        fields = [mid,name,description,definition]
+        fields = [mid,name,def_type,description,definition]
         if all(fields):
-            return cls(mid,name,description,definition)
+            return cls(mid,name,def_type,description,definition)
         return None
 
 class SequencedDefinition(Definition):
     SEQUENCES_FIELD = "sequences"
-    def __init__(self,mid:str,name:str,description:str,definition:list):
-        super().__init__(mid,name,description)
+    def __init__(self,mid:str,name:str,def_type:str,description:str,definition:list):
+        super().__init__(mid,name,def_type,description)
         self.definition = definition
     def to_dict(self):
         result = super().to_dict()
@@ -160,11 +174,12 @@ class SequencedDefinition(Definition):
     def from_dict(cls,document:dict):
         mid = document.get(Definition.ID_FIELD)
         name = document.get(Definition.NAME_FIELD)
+        def_type = document.get(Definition.TYPE_FIELD)
         description = document.get(Definition.DESCRIPTION_FIELD)
         sequences = document.get(SequencedDefinition.SEQUENCES_FIELD,[])
-        fields = [mid,name,description]
+        fields = [mid,name,def_type,description]
         if all(fields):
-            return cls(mid,name,description,sequences)
+            return cls(mid,name,def_type,description,sequences)
         return None
 
 class DefinitionSequenceElement(HelperModel):
@@ -386,10 +401,6 @@ class HubNSpokeDefinition(CommonDefinition):
     TYPE = DefinitionType.HUB_N_SPOKE
     SUBDEFINITIONS_FIELD = "subDefinitions"
     VPNLIST_FIELD = "vpnList"
-    def to_dict(self):
-        result = super().to_dict()
-        result[Definition.TYPE_FIELD] = HubNSpokeDefinition.TYPE.value
-        return result
     @accumulator(CentralizedReferences)
     def references(self,accumulator:CentralizedReferences=None):
         accumulator.vpn_lists.add(self.vpn_list)
@@ -464,10 +475,6 @@ class MeshDefinition(CommonDefinition):
     TYPE = DefinitionType.MESH
     REGIONS_FIELD = "regions"
     VPNLIST_FIELD = "vpnList"
-    def to_dict(self):
-        result = super().to_dict()
-        result[Definition.TYPE_FIELD] = MeshDefinition.TYPE.value
-        return result
     @accumulator(CentralizedReferences)
     def references(self,accumulator:CentralizedReferences=None):
         accumulator.vpn_lists.add(self.vpn_list)
@@ -502,10 +509,6 @@ class ControlDefinition(SequencedDefinition):
 class VPNMembershipDefinition(CommonDefinition):
     TYPE = DefinitionType.VPN_MEMBERSHIP
     SITES_FIELD = "sites"
-    def to_dict(self):
-        result = super().to_dict()
-        result[Definition.TYPE_FIELD] = VPNMembershipDefinition.TYPE.value
-        return result
     @accumulator(CentralizedReferences)
     def references(self,accumulator:CentralizedReferences=None):
         for site in self.sites:
@@ -535,24 +538,31 @@ class VPNMembershipSiteElement(HelperModel):
 
 class AppRouteDefinition(SequencedDefinition):
     TYPE = DefinitionType.APP_ROUTE
-    def to_dict(self):
-        result = super().to_dict()
-        result[Definition.TYPE_FIELD] = AppRouteDefinition.TYPE.value
-        return result
 
 class DataDefinition(SequencedDefinition):
     TYPE = DefinitionType.DATA
-    def to_dict(self):
-        result = super().to_dict()
-        result[Definition.TYPE_FIELD] = DataDefinition.TYPE.value
-        return result
 
 class CflowdDefinition(CommonDefinition):
     TYPE = DefinitionType.CFLOWD
-    def to_dict(self):
-        result = super().to_dict()
-        result[Definition.TYPE_FIELD] = CflowdDefinition.TYPE.value
-        return result
+
+class DefinitionFactory:
+    def from_dict(self,document:dict):
+        doc_type = DefinitionType(document.get(Definition.TYPE_FIELD))
+        if doc_type == DefinitionType.HUB_N_SPOKE:
+            return HubNSpokeDefinition.from_dict(document)
+        elif doc_type == DefinitionType.MESH:
+            return MeshDefinition.from_dict(document)
+        elif doc_type == DefinitionType.CONTROL:
+            return ControlDefinition.from_dict(document)
+        elif doc_type == DefinitionType.VPN_MEMBERSHIP:
+            return VPNMembershipDefinition.from_dict(document)
+        elif doc_type == DefinitionType.APP_ROUTE:
+            return AppRouteDefinition.from_dict(document)
+        elif doc_type == DefinitionType.DATA:
+            return DataDefinition.from_dict(document)
+        elif doc_type == DefinitionType.CFLOWD:
+            return CflowdDefinition.from_dict(document)
+        raise ValueError("Unsupported Definition Type: {0}".format(doc_type))
 
 class DefinitionApplication(HelperModel):
     TYPE_FIELD = "type"

@@ -1,5 +1,7 @@
-from vmanage.policy.tool import References,ReferenceType
 from enum import Enum
+
+from vmanage.policy.tool import References,ReferenceType
+from vmanage.lists.model import ListFactory
 
 class CentralizedReferences(References):
     def __init__(
@@ -63,6 +65,10 @@ class DefinitionType(Enum):
     DATA = "data"
     CFLOWD = "cflowd"
 
+class PolicyType(Enum):
+    CLI = "cli"
+    FEATURE = "feature"
+
 class CentralizedDefinitions:
     def __init__(
         self,
@@ -116,28 +122,5 @@ class CentralizedDefinitions:
             self.cflowd.add(definition)
         else:
             raise ValueError("Unsupported Definition Type: {0}".format(def_type))
-    def __str__(self):
-        return str(vars(self))
-
-class PolicyExportFormat:
-    POLICIES_FIELD = "policies"
-    DEFINITIONS_FIELD = "definitions"
-    REFERENCES_FIELD = "references"
-    DEFINITION_MAP_FIELD = "definition_map"
-    REFERENCE_MAP_FIELD = "reference_map"
-    def __init__(self):
-        self.policies = set()
-        self.definitions = set()
-        self.references = set()
-        self.definition_map = {}
-        self.reference_map = {}
-    def to_dict(self):
-        return {
-            PolicyExportFormat.POLICIES_FIELD : [policy.to_dict() for policy in self.policies],
-            PolicyExportFormat.DEFINITIONS_FIELD : [definition.to_dict() for definition in self.definitions],
-            PolicyExportFormat.REFERENCES_FIELD : [reference.to_dict() for reference in self.references],
-            PolicyExportFormat.DEFINITION_MAP_FIELD : self.definition_map,
-            PolicyExportFormat.REFERENCE_MAP_FIELD : self.reference_map
-        }
     def __str__(self):
         return str(vars(self))

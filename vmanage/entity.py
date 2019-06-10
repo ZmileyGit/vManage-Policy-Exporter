@@ -4,12 +4,15 @@ class Server:
     HOST_FIELD = "host"
     PORT_FIELD = "port"
     PROTOCOL_FIELD = "proto"
+    SECURE_FIELD = "secure"
     DEFAULT_PORT = 443
     DEFAULT_PROTOCOL = "https"
-    def __init__(self,host:str,port:int=DEFAULT_PORT,protocol:str=DEFAULT_PROTOCOL):
+    DEFAULT_SECURE = True
+    def __init__(self,host:str,port:int=DEFAULT_PORT,protocol:str=DEFAULT_PROTOCOL,secure:bool=DEFAULT_SECURE):
         self.host = host
         self.port = port
         self.protocol = protocol
+        self.secure = secure
     @property
     def uri(self):
         return "{protocol}://{host}:{port}".format(protocol=self.protocol,host=self.host,port=self.port)
@@ -20,8 +23,9 @@ class Server:
         host = document.get(Server.HOST_FIELD)
         port = int(document.get(Server.PORT_FIELD,Server.DEFAULT_PORT))
         protocol = document.get(Server.PROTOCOL_FIELD,Server.DEFAULT_PROTOCOL)
+        secure = document.get(Server.SECURE_FIELD,Server.DEFAULT_SECURE)
         if host and port and protocol:
-            return Server(host,port=port,protocol=protocol)
+            return Server(host,port=port,protocol=protocol,secure=secure)
         return None
 
 class HelperModel:

@@ -1,5 +1,6 @@
 import json
 import os
+import re
 import getpass
 
 from vmanage.entity import Server
@@ -13,11 +14,12 @@ class Configuration:
     PASSWORD_PROMPT = "Password: "
     FILE_FIELD = "file"
     DEFAULT_FILE = "policies.json"
-    FILE_PROMPT = "Export to({0}):".format(DEFAULT_FILE)
+    FILE_PROMPT = "Working File({0}):".format(DEFAULT_FILE)
     ENCODING_FIELD = "encoding"
     DEFAULT_ENCODING = "UTF-8"
     HOST_PROMPT = "Host: "
     PORT_PROMPT = "Port({0}): ".format(Server.DEFAULT_PORT)
+    SECURE_PROMPT = "Certificate Check[y/n]: "
     INVALID_PORT_NUMBER_MESSAGE = "Please input a port number"
     def __init__(self,server,username,password,work_file,encoding=DEFAULT_ENCODING):
         self._server = server
@@ -44,12 +46,17 @@ class Configuration:
     @property
     def server(self):
         if not self._server:
+            yn = re.compile("^[yY](es|eah boi)?$")
+            document = {}
             host = input(Configuration.HOST_PROMPT).strip()
+            document[Server.HOST_FIELD] = host
             port = input(Configuration.PORT_PROMPT).strip()
-            self._server = Server.from_dict({
-                Server.HOST_FIELD : host,
-                Server.PORT_FIELD : port
-            })
+            if len(port):
+                document[Server.PORT_FIELD] = port
+            secure = input(Configuration.SECURE_PROMPT).strip()
+            secure = not len(secure) or re.match(yn,secure) is not None
+            document[Server.SECURE_FIELD] = secure
+            self._server = Server.from_dict(document)
         return self._server
     @staticmethod
     def from_dict(document:dict):
