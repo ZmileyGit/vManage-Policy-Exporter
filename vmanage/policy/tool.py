@@ -1,4 +1,5 @@
 from enum import Enum
+from abc import ABC,abstractmethod,abstractproperty
 
 class ReferenceType(Enum):
     COLOR_LIST = "colorList"
@@ -13,6 +14,19 @@ class ReferenceType(Enum):
     DEST_DATA_PREFIX_LIST = "destinationDataPrefixList"
     SLA_CLASS = "slaClass"
     POLICER = "policer"
+
+class PolicyType(Enum):
+    CLI = "cli"
+    FEATURE = "feature"
+
+class DefinitionType(Enum):
+    HUB_N_SPOKE = "hubAndSpoke"
+    MESH = "mesh"
+    CONTROL = "control"
+    VPN_MEMBERSHIP = "vpnMembershipGroup"
+    APP_ROUTE = "appRoute"
+    DATA = "data"
+    CFLOWD = "cflowd"
 
 class References:
     def __init__(
@@ -43,6 +57,19 @@ class References:
             self.policers.add(reference)
         else:
             raise ValueError("Unsupported Reference Type: {0}".format(ref_type))
+    def __str__(self):
+        return str(vars(self))
+
+class Definitions(ABC):
+    @abstractmethod
+    def merge(self,source):
+        pass
+    @abstractmethod
+    def as_list(self):
+        pass
+    @abstractmethod
+    def add_by_type(self,def_type:DefinitionType,definition):
+        pass
     def __str__(self):
         return str(vars(self))
 

@@ -52,9 +52,7 @@ class PolicyDAO(ModelDAO):
             except CodedAPIError as error:
                 attempt = error.error.code == PolicyDAO.DUPLICATE_POLICY_NAME_CODE
                 if not attempt or count == max_attempts:
-                    print(error.error.message)
-                    print(error.error.details)
-                    attempt = False
+                    raise
                 model.name = "-{attempt}-{name}".format(attempt=count,name=original[Policy.NAME_FIELD])
                 count += 1
             else:

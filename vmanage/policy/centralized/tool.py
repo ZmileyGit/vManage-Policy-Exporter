@@ -1,6 +1,7 @@
 from enum import Enum
 
-from vmanage.policy.tool import References,ReferenceType
+from vmanage.policy.tool import References,ReferenceType,DefinitionType
+from vmanage.policy.tool import Definitions
 from vmanage.lists.model import ListFactory
 
 class CentralizedReferences(References):
@@ -56,20 +57,7 @@ class CentralizedReferences(References):
         else:
             super().add_by_type(ref_type,reference)
 
-class DefinitionType(Enum):
-    HUB_N_SPOKE = "hubAndSpoke"
-    MESH = "mesh"
-    CONTROL = "control"
-    VPN_MEMBERSHIP = "vpnMembershipGroup"
-    APP_ROUTE = "appRoute"
-    DATA = "data"
-    CFLOWD = "cflowd"
-
-class PolicyType(Enum):
-    CLI = "cli"
-    FEATURE = "feature"
-
-class CentralizedDefinitions:
+class CentralizedDefinitions(Definitions):
     def __init__(
         self,
         hub_n_spoke:set=None,

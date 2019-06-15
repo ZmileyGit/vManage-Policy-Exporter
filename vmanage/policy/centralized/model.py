@@ -1,63 +1,21 @@
+from abc import abstractproperty
+
 from vmanage.entity import HelperModel,Model,ModelFactory
 
-from vmanage.policy.centralized.tool import CentralizedReferences,CentralizedDefinitions
-from vmanage.policy.centralized.tool import DefinitionType,PolicyType
+from vmanage.policy.model import Definition,CommonDefinition,SequencedDefinition
+from vmanage.policy.model import Policy,GUIPolicy,CLIPolicy
+from vmanage.policy.model import DefinitionApplication,SequencedDefinition
+from vmanage.policy.model import DefinitionSequenceElement
+from vmanage.policy.model import DefinitionActionElementFactory
+from vmanage.policy.model import DefinitionMultiActionElement,DefinitionUniActionElement,DefinitionActionElement
+from vmanage.policy.model import DefinitionActionEntry,DefinitionActionValuedEntry,DefinitionActionEntryFactory
+from vmanage.policy.model import DefinitionActionReferenceEntry
+from vmanage.policy.tool import DefinitionType,PolicyType
 from vmanage.policy.tool import accumulator,ReferenceType
 
-from json import JSONDecoder,JSONDecodeError,JSONEncoder
+from vmanage.policy.centralized.tool import CentralizedReferences,CentralizedDefinitions
 
-class Policy(Model):
-    NAME_FIELD = "policyName"
-    NAME_LIMIT = 32
-    ID_FIELD = "policyId"
-    DESCRIPTION_FIELD = "policyDescription"
-    DEFINITION_FIELD = "policyDefinition"
-    TYPE_FIELD = "policyType"
-    def __init__(self,mid:str,name:str,policy_type:str,description:str):
-        super().__init__(mid)
-        self.name = name
-        self._type = policy_type
-        self.description = description
-    @property
-    def type(self):
-        return PolicyType(self._type)
-    def to_dict(self):
-        return {
-            Policy.ID_FIELD : self.id,
-            Policy.NAME_FIELD : self.name[:Policy.NAME_LIMIT],
-            Policy.TYPE_FIELD : self.type.value,
-            Policy.DESCRIPTION_FIELD : self.description
-        }
-    def __str__(self):
-        return "{mid} -> '{name}'".format(mid=self.id,name=self.name)
-
-class CLIPolicy(Policy):
-    TYPE = PolicyType.CLI
-    def __init__(self,mid:str,name:str,policy_type:str,description:str,definition:str):
-        super().__init__(mid,name,policy_type,description)
-        self.definition = definition
-    def to_dict(self):
-        result = super().to_dict()
-        result[Policy.DEFINITION_FIELD] = self.definition
-        return result
-    @staticmethod
-    def from_dict(document:dict):
-        mid = document.get(Policy.ID_FIELD)
-        name = document.get(Policy.NAME_FIELD)
-        policy_type = document.get(Policy.TYPE_FIELD)
-        description = document.get(Policy.DESCRIPTION_FIELD)
-        definition = document.get(Policy.DEFINITION_FIELD)
-        fields = [mid,name,policy_type,description,definition]
-        if all(fields):
-            return CLIPolicy(mid,name,policy_type,description,definition)
-        return None
-
-class GUIPolicy(Policy):
-    TYPE = PolicyType.FEATURE
-    ASSEMBLY_FIELD = "assembly"
-    def __init__(self,mid:str,name:str,policy_type:str,description:str,definition:dict):
-        super().__init__(mid,name,policy_type,description)
-        self.definition = definition
+class CentralizedGUIPolicy(GUIPolicy):
     @accumulator(CentralizedReferences)
     def references(self,accumulator:CentralizedReferences=None):
         for application in self.assembly:
@@ -76,25 +34,6 @@ class GUIPolicy(Policy):
             factory.from_dict(entry)
             for entry in self.definition.get(GUIPolicy.ASSEMBLY_FIELD)
         )
-    def to_dict(self):
-        result = super().to_dict()
-        result[Policy.DEFINITION_FIELD] = JSONEncoder().encode(self.definition)
-        return result
-    @staticmethod
-    def from_dict(document:dict):
-        mid = document.get(Policy.ID_FIELD)
-        name = document.get(Policy.NAME_FIELD)
-        policy_type = document.get(Policy.TYPE_FIELD)
-        description = document.get(Policy.DESCRIPTION_FIELD)
-        definition = document.get(Policy.DEFINITION_FIELD)
-        try:
-            definition = JSONDecoder().decode(definition)
-        except JSONDecodeError:
-            definition = None
-        fields = [mid,name,policy_type,description,definition]
-        if all(fields):
-            return GUIPolicy(mid,name,policy_type,description,definition)
-        return None
 
 class PolicyFactory(ModelFactory):
     def from_dict(self,document:dict):
@@ -102,122 +41,42 @@ class PolicyFactory(ModelFactory):
         if policy_type == PolicyType.CLI:
             return CLIPolicy.from_dict(document)
         elif policy_type == PolicyType.FEATURE:
-            return GUIPolicy.from_dict(document)
-        return None
+            return CentralizedGUIPolicy.from_dict(document)
+        raise ValueError("Unsupported Policy Type: {0}".format(policy_type))
 
-class Definition(Model):
-    NAME_FIELD = "name"
-    NAME_LIMIT = 32
-    ID_FIELD = "definitionId"
-    DESCRIPTION_FIELD = "description"
-    TYPE_FIELD = "type"
-    def __init__(self,mid:str,name:str,def_type:str,description:str):
-        super().__init__(mid)
-        self.name = name
-        self._type = def_type
-        self.description = description
-    @property
-    def type(self):
-        return DefinitionType(self._type)
-    def to_dict(self):
-        return {
-            Definition.ID_FIELD : self.id,
-            Definition.NAME_FIELD : self.name[:Definition.NAME_LIMIT],
-            Definition.TYPE_FIELD : self.type.value,
-            Definition.DESCRIPTION_FIELD : self.description
-        }
-    def __str__(self):
-        return "{mid} -> '{name}'".format(mid=self.id,name=self.name)
-
-class CommonDefinition(Definition):
-    DEFINITION_FIELD = "definition"
-    def __init__(self,mid:str,name:str,def_type:str,description:str,definition:dict):
-        super().__init__(mid,name,def_type,description)
-        self.definition = definition
-    def to_dict(self):
-        result = super().to_dict()
-        result[CommonDefinition.DEFINITION_FIELD] = self.definition 
-        return result
-    @classmethod
-    def from_dict(cls,document:dict):
-        mid = document.get(Definition.ID_FIELD)
-        name = document.get(Definition.NAME_FIELD)
-        def_type = document.get(Definition.TYPE_FIELD)
-        description = document.get(Definition.DESCRIPTION_FIELD)
-        definition = document.get(CommonDefinition.DEFINITION_FIELD,{})
-        fields = [mid,name,def_type,description,definition]
-        if all(fields):
-            return cls(mid,name,def_type,description,definition)
-        return None
-
-class SequencedDefinition(Definition):
-    SEQUENCES_FIELD = "sequences"
-    def __init__(self,mid:str,name:str,def_type:str,description:str,definition:list):
-        super().__init__(mid,name,def_type,description)
-        self.definition = definition
-    def to_dict(self):
-        result = super().to_dict()
-        result[SequencedDefinition.SEQUENCES_FIELD] = self.definition
-        return result
-    @accumulator(CentralizedReferences)
-    def references(self,accumulator:CentralizedReferences=None):
-        for sequence in self.sequences:
-            sequence.references(accumulator=accumulator)
-        return accumulator
+class CentralizedSequencedDefinition(SequencedDefinition):
     @property
     def sequences(self):
         return (
-            DefinitionSequenceElement(sequence) 
+            CentralizedSequenceElement(sequence) 
             for sequence in self.definition
         )
-    @classmethod
-    def from_dict(cls,document:dict):
-        mid = document.get(Definition.ID_FIELD)
-        name = document.get(Definition.NAME_FIELD)
-        def_type = document.get(Definition.TYPE_FIELD)
-        description = document.get(Definition.DESCRIPTION_FIELD)
-        sequences = document.get(SequencedDefinition.SEQUENCES_FIELD,[])
-        fields = [mid,name,def_type,description]
-        if all(fields):
-            return cls(mid,name,def_type,description,sequences)
-        return None
 
-class DefinitionSequenceElement(HelperModel):
-    TYPE_FIELD = "sequenceType"
-    MATCH_FIELD = "match"
-    ACTIONS_FIELD = "actions"
-    @property
-    def type(self):
-        return self.definition.get(DefinitionSequenceElement.TYPE_FIELD)
-    @accumulator(CentralizedReferences)
-    def references(self,accumulator:CentralizedReferences=None):
-        self.match.references(accumulator=accumulator)
-        for action in self.actions:
-            if isinstance(action,DefinitionMultiActionElement) or isinstance(action,DefinitionUniActionElement):
-                action.references(accumulator=accumulator)
-        return accumulator
-    @property
-    def match(self):
-        return DefinitionMatchElement(self.definition.get(DefinitionSequenceElement.MATCH_FIELD))
+class CentralizedSequenceElement(DefinitionSequenceElement):
     @property
     def actions(self):
-        factory = DefinitionActionElementFactory()
+        factory = CentralizedActionElementFactory()
         return (
             factory.from_dict(entry)
             for entry in self.definition.get(DefinitionSequenceElement.ACTIONS_FIELD)
         )
 
-class DefinitionActionElement(HelperModel):
-    TYPE_FIELD = "type"
-    PARAMETER_FIELD = "parameter"
+class CentralizedDefUniActionElement(DefinitionUniActionElement):
     @property
-    def type(self):
-        return self.definition.get(DefinitionActionElement.TYPE_FIELD)
+    def parameter(self):
+        factory = CentralizedActionEntryFactory()
+        return factory.from_dict(self.definition.get(DefinitionActionElement.PARAMETER_FIELD))
+    @accumulator(CentralizedReferences)
+    def references(self,accumulator:CentralizedReferences=None):
+        if isinstance(self.parameter,DefinitionActionServiceEntry):
+            self.parameter.references(accumulator=accumulator)
+        super().references(accumulator=accumulator)
+        return accumulator
 
-class DefinitionMultiActionElement(DefinitionActionElement):
+class CentralizedDefMultiActionElement(DefinitionMultiActionElement):
     @property
     def parameters(self):
-        factory = DefinitionActionEntryFactory()
+        factory = CentralizedActionEntryFactory()
         return (
             factory.from_dict(entry)
             for entry in self.definition.get(DefinitionActionElement.PARAMETER_FIELD)
@@ -225,12 +84,12 @@ class DefinitionMultiActionElement(DefinitionActionElement):
     @accumulator(CentralizedReferences)
     def references(self,accumulator:CentralizedReferences=None):
         for param in self.parameters:
-            if isinstance(param,DefinitionActionReferenceEntry) or isinstance(param,DefinitionActionServiceEntry):
+            if isinstance(param,DefinitionActionServiceEntry):
                 param.references(accumulator=accumulator)
+        super().references(accumulator=accumulator)
         return accumulator
 
-
-class DefinitionSLAClassActionElement(DefinitionMultiActionElement):
+class SLAClassActionElement(CentralizedDefMultiActionElement):
     TYPE = "slaClass"
     @property
     def parameters(self):
@@ -240,41 +99,17 @@ class DefinitionSLAClassActionElement(DefinitionMultiActionElement):
             for entry in self.definition.get(DefinitionActionElement.PARAMETER_FIELD)
         )
 
-class DefinitionUniActionElement(DefinitionActionElement):
-    @property
-    def parameter(self):
-        factory = DefinitionActionEntryFactory()
-        return factory.from_dict(self.definition.get(DefinitionActionElement.PARAMETER_FIELD))
-    @accumulator(CentralizedReferences)
-    def references(self,accumulator:CentralizedReferences=None):
-        if isinstance(self.parameter,DefinitionActionReferenceEntry) or isinstance(self.parameter,DefinitionActionServiceEntry):
-            self.parameter.references(accumulator=accumulator)
-        return accumulator
-
-class DefinitionActionElementFactory:
+class CentralizedActionElementFactory(DefinitionActionElementFactory):
     def from_dict(self,document:dict):
-        parameter = document.get(DefinitionActionElement.PARAMETER_FIELD)
         action_type = document.get(DefinitionActionElement.TYPE_FIELD)
-        if action_type == DefinitionSLAClassActionElement.TYPE:
-            return DefinitionSLAClassActionElement(document)
+        parameter = document.get(DefinitionActionElement.PARAMETER_FIELD)
+        if action_type == SLAClassActionElement.TYPE:
+            return SLAClassActionElement(document)
         elif isinstance(parameter,dict):
-            return DefinitionUniActionElement(document)
+            return CentralizedDefUniActionElement(document)
         elif isinstance(parameter,list):
-            return DefinitionMultiActionElement(document)
-        return DefinitionActionElement(document)
-
-class DefinitionActionEntry(HelperModel):
-    FIELDTYPE_FIELD = "field"
-    VALUE_FIELD = "value"
-    REFERENCE_FIELD = "ref"
-    @property
-    def type(self):
-        return self.definition.get(DefinitionActionEntry.FIELDTYPE_FIELD)
-
-class DefinitionActionValuedEntry(DefinitionActionEntry):
-    @property
-    def value(self):
-        return self.definition.get(DefinitionActionEntry.VALUE_FIELD)
+            return CentralizedDefMultiActionElement(document)
+        return super().from_dict(document)
 
 class DefinitionActionServiceEntry(DefinitionActionValuedEntry):
     TYPE = "service"
@@ -287,36 +122,6 @@ class DefinitionActionServiceEntry(DefinitionActionValuedEntry):
         if isinstance(self.service,ReferenceActionService):
             self.service.references(accumulator=accumulator)
         return accumulator
-
-class DefinitionActionReferenceEntry(DefinitionActionEntry):
-    @accumulator(CentralizedReferences)
-    def references(self,accumulator:CentralizedReferences=None):
-        accumulator.add_by_type(ReferenceType(self.type),self.definition.get(DefinitionActionEntry.REFERENCE_FIELD))
-        return accumulator
-        
-class DefinitionSLAClassActionEntry(DefinitionActionReferenceEntry):
-    @accumulator(CentralizedReferences)
-    def references(self,accumulator:CentralizedReferences=None):
-        accumulator.add_by_type(ReferenceType.SLA_CLASS,self.definition.get(DefinitionActionEntry.REFERENCE_FIELD))
-        return accumulator
-
-class DefinitionActionEntryFactory:
-    def from_dict(self,document:dict):
-        action_type = document.get(DefinitionActionEntry.FIELDTYPE_FIELD)
-        if action_type == DefinitionActionServiceEntry.TYPE:
-            return DefinitionActionServiceEntry(document)
-        elif document.get(DefinitionActionEntry.REFERENCE_FIELD):
-            return DefinitionActionReferenceEntry(document)
-        elif document.get(DefinitionActionEntry.VALUE_FIELD):
-            return DefinitionActionValuedEntry(document)
-        return DefinitionActionEntry(document)
-
-class DefinitionSLAClassActionEntryFactory(DefinitionActionEntryFactory):
-    def from_dict(self,document:dict):
-        action_type = document.get(DefinitionActionEntry.FIELDTYPE_FIELD)
-        if action_type == "name":
-            return DefinitionSLAClassActionEntry(document)
-        return super().from_dict(document)
 
 class ActionService(HelperModel):
     TYPE_FIELD = "type"
@@ -353,49 +158,25 @@ class ActionServiceFactory:
             return ReferenceActionService(document)
         return ActionService(document)
 
-class DefinitionMatchElement(HelperModel):
-    ENTRIES_FIELD = "entries"
-    @property
-    def entries(self):
-        factory = DefinitionMatchEntryFactory()
-        return (
-            factory.from_dict(entry) 
-            for entry in self.definition.get(DefinitionMatchElement.ENTRIES_FIELD)
-        )
-    @accumulator(CentralizedReferences)
-    def references(self,accumulator:CentralizedReferences=None):
-        for entry in self.entries:
-            if isinstance(entry,DefinitionMatchReferenceEntry):
-                entry.references(accumulator=accumulator)
-        return accumulator
-
-class DefinitionMatchEntry(HelperModel):  
-    FIELDTYPE_FIELD = "field"
-    VALUE_FIELD = "value"
-    REFERENCE_FIELD = "ref"
-    @property
-    def type(self):
-        return self.definition.get(DefinitionMatchEntry.FIELDTYPE_FIELD)
-
-class DefinitionMatchValuedEntry(DefinitionMatchEntry):
-    @property
-    def value(self):
-        return self.definition.get(DefinitionMatchEntry.VALUE_FIELD)
-
-class DefinitionMatchReferenceEntry(DefinitionMatchEntry):
-    @accumulator(CentralizedReferences)
-    def references(self,accumulator:CentralizedReferences=None):
-        accumulator.add_by_type(ReferenceType(self.type),self.definition.get(DefinitionMatchEntry.REFERENCE_FIELD))
-        return accumulator
-
-class DefinitionMatchEntryFactory:
+class CentralizedActionEntryFactory(DefinitionActionEntryFactory):
     def from_dict(self,document:dict):
-        if document.get(DefinitionMatchEntry.REFERENCE_FIELD):
-            return DefinitionMatchReferenceEntry(document)
-        elif document.get(DefinitionMatchEntry.VALUE_FIELD):
-            return DefinitionMatchValuedEntry(document)
-        else:
-            return DefinitionMatchEntry(document)
+        action_type = document.get(DefinitionActionEntry.FIELDTYPE_FIELD)
+        if action_type == DefinitionActionServiceEntry.TYPE:
+            return DefinitionActionServiceEntry(document)
+        return super().from_dict(document)
+
+class DefinitionSLAClassActionEntry(DefinitionActionReferenceEntry):
+    @accumulator(CentralizedReferences)
+    def references(self,accumulator:CentralizedReferences=None):
+        accumulator.add_by_type(ReferenceType.SLA_CLASS,self.definition.get(DefinitionActionEntry.REFERENCE_FIELD))
+        return accumulator
+
+class DefinitionSLAClassActionEntryFactory(CentralizedActionEntryFactory):
+    def from_dict(self,document:dict):
+        action_type = document.get(DefinitionActionEntry.FIELDTYPE_FIELD)
+        if action_type == "name":
+            return DefinitionSLAClassActionEntry(document)
+        return super().from_dict(document)
 
 class HubNSpokeDefinition(CommonDefinition):
     TYPE = DefinitionType.HUB_N_SPOKE
@@ -499,12 +280,8 @@ class MeshRegionElement(HelperModel):
         accumulator.site_lists.update(self.site_lists)
         return accumulator
 
-class ControlDefinition(SequencedDefinition):
+class ControlDefinition(CentralizedSequencedDefinition):
     TYPE = DefinitionType.CONTROL
-    def to_dict(self):
-        result = super().to_dict()
-        result[Definition.TYPE_FIELD] = ControlDefinition.TYPE.value
-        return result
 
 class VPNMembershipDefinition(CommonDefinition):
     TYPE = DefinitionType.VPN_MEMBERSHIP
@@ -536,10 +313,10 @@ class VPNMembershipSiteElement(HelperModel):
     def vpn_lists(self):
         return self.definition[VPNMembershipSiteElement.VPNLISTS_FIELD]
 
-class AppRouteDefinition(SequencedDefinition):
+class AppRouteDefinition(CentralizedSequencedDefinition):
     TYPE = DefinitionType.APP_ROUTE
 
-class DataDefinition(SequencedDefinition):
+class DataDefinition(CentralizedSequencedDefinition):
     TYPE = DefinitionType.DATA
 
 class CflowdDefinition(CommonDefinition):
@@ -564,21 +341,11 @@ class DefinitionFactory:
             return CflowdDefinition.from_dict(document)
         raise ValueError("Unsupported Definition Type: {0}".format(doc_type))
 
-class DefinitionApplication(HelperModel):
-    TYPE_FIELD = "type"
-    ID_FIELD = "definitionId"
-    ENTRIES_FIELD = "entries"
-    @property
-    def type(self):
-        return DefinitionType(self.definition.get(DefinitionApplication.TYPE_FIELD))
-    @property
-    def id(self):
-        return self.definition.get(DefinitionApplication.ID_FIELD)
-
 class DefinitionReferenceApplication(DefinitionApplication):
-    @property
+    ENTRIES_FIELD = "entries"
+    @abstractproperty
     def entries(self):
-        return []
+        pass
     @accumulator(CentralizedReferences)
     def references(self,accumulator:CentralizedReferences=None):
         for entry in self.entries:
@@ -591,7 +358,7 @@ class ControlPolicyApplication(DefinitionReferenceApplication):
     def entries(self):
         return (
             ControlDirectionApplication(entry)
-            for entry in self.definition.get(DefinitionApplication.ENTRIES_FIELD)
+            for entry in self.definition.get(DefinitionReferenceApplication.ENTRIES_FIELD)
         )
 
 class ControlDirectionApplication(HelperModel):
@@ -614,7 +381,7 @@ class DataPolicyApplication(DefinitionReferenceApplication):
     def entries(self):
         return (
             DataDirectionApplication(entry)
-            for entry in self.definition.get(DefinitionApplication.ENTRIES_FIELD)
+            for entry in self.definition.get(DefinitionReferenceApplication.ENTRIES_FIELD)
         )
 
 class DataDirectionApplication(HelperModel):
@@ -642,7 +409,7 @@ class CflowdPolicyApplication(DefinitionReferenceApplication):
     def entries(self):
         return (
             CflowdApplicationEntry(entry)
-            for entry in self.definition.get(DefinitionApplication.ENTRIES_FIELD)
+            for entry in self.definition.get(DefinitionReferenceApplication.ENTRIES_FIELD)
         )
 
 class CflowdApplicationEntry(HelperModel):
@@ -661,7 +428,7 @@ class AppRoutePolicyApplication(DefinitionReferenceApplication):
     def entries(self):
         return (
             AppRouteApplicationEntry(entry)
-            for entry in self.definition.get(DefinitionApplication.ENTRIES_FIELD)
+            for entry in self.definition.get(DefinitionReferenceApplication.ENTRIES_FIELD)
         )
     
 class AppRouteApplicationEntry(HelperModel):
