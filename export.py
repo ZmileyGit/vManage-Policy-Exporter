@@ -20,51 +20,51 @@ from vmanage.policy.centralized.tool import CentralizedReferences,CentralizedDef
 from vmanage.policy.centralized.tool import DefinitionType
 from vmanage.policy.centralized.model import CentralizedGUIPolicy
 
-def extract_policies(server,user,password):
-    with vManageSession(server) as session:
-        print("Attempting to Login...")
-        if session.login(user,password):
-            print("Successful Login")
-            centralized_policies = PoliciesDAO(session)
-            print("Retrieving Centralized Polices...")
-            policies = centralized_policies.get_all()
-            global_definitions = CentralizedDefinitions()
-            global_references = CentralizedReferences()
-            report = PolicyExportFormat()
-            for policy in policies:
-                if isinstance(policy,CentralizedGUIPolicy):
-                    definitions = policy.definitions()
-                    report.definition_map[policy.id] = definitions.as_list()
-                    global_definitions.merge(definitions)
+def extract_policies(session:vManageSession):
+    centralized_policies = PoliciesDAO(session)
+    print("Retrieving Centralized Polices...")
+    policies = centralized_policies.get_all()
+    global_definitions = CentralizedDefinitions()
+    global_references = CentralizedReferences()
+    report = PolicyExportFormat()
+    for policy in policies:
+        if isinstance(policy,CentralizedGUIPolicy):
+            definitions = policy.definitions()
+            report.definition_map[policy.id] = definitions.as_list()
+            global_definitions.merge(definitions)
 
-                    references = policy.references()
-                    report.reference_map[policy.id] = references.as_list()
-                    global_references.merge(references)
-                report.policies.add(policy)
+            references = policy.references()
+            report.reference_map[policy.id] = references.as_list()
+            global_references.merge(references)
+        report.policies.add(policy)
 
-            print("Retrieving Definitions...")
-            def_factory = DefinitionDAOFactory(session)
-            for definition_id in global_definitions.as_list():
-                definition = def_factory.from_type(DefinitionType(definition_id[0])).get_by_id(definition_id[1])
-                if not isinstance(definition,CflowdDefinition):
-                    definition.references(accumulator=global_references)
-                report.definitions.add(definition)
+    print("Retrieving Definitions...")
+    def_factory = DefinitionDAOFactory(session)
+    for definition_id in global_definitions.as_list():
+        definition = def_factory.from_type(DefinitionType(definition_id[0])).get_by_id(definition_id[1])
+        if not isinstance(definition,CflowdDefinition):
+            definition.references(accumulator=global_references)
+        report.definitions.add(definition)
 
-            print("Retrieving References...")
-            ref_factory = ListDAOFactory(session)
-            for ref_id in global_references.as_list():
-                listd = ref_factory.from_reference_type(ReferenceType(ref_id[0])).get_by_id(ref_id[1])
-                report.references.add(listd)
+    print("Retrieving References...")
+    ref_factory = ListDAOFactory(session)
+    for ref_id in global_references.as_list():
+        listd = ref_factory.from_reference_type(ReferenceType(ref_id[0])).get_by_id(ref_id[1])
+        report.references.add(listd)
 
-            return report
-    return None
+    return report
 
 def main():
     config = Configuration.from_file("./config.json")
-    report = extract_policies(config.server,config.username,config.password)
-    if report:
-        print("Saving report...")
-        with open(config.file,"wt",encoding=config.encoding) as export_file:
-            json.dump(report.to_dict(),export_file)
+    with vManageSession(config.server) as session:
+        print("Attempting to Login...")
+        if session.login(config.username,config.password):
+                print("Successful Login.")
+                report = extract_policies(session)
+                print("Saving report...")
+                with open(config.file,"wt",encoding=config.encoding) as export_file:
+                    json.dump(report.to_dict(),export_file)
+        else:
+            print("Login Failed.")
 
 main()

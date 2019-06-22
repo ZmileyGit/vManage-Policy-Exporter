@@ -5,10 +5,13 @@ from vmanage.dao import ModelDAO,CollectionDAO
 from vmanage.tool import APIListRequestHandler,APIErrorRequestHandler
 
 from vmanage.policy.dao import PolicyDAO,DefinitionDAO,PolicyRequestHandler
-from vmanage.policy.tool import PolicyType,factory_memoization
+from vmanage.policy.tool import PolicyType,DefinitionType,factory_memoization
 
 from vmanage.policy.localized.model import PolicyFactory
 from vmanage.policy.localized.model import CLIPolicy,LocalizedGUIPolicy
+from vmanage.policy.localized.model import QoSMapDefinition,RewriteRuleDefinition
+from vmanage.policy.localized.model import ACLv4Definition,ACLv6Definition
+from vmanage.policy.localized.model import vEdgeRouteDefinition
 
 class PoliciesDAO(CollectionDAO):
     RESOURCE = "/dataservice/template/policy/vedge"
@@ -60,18 +63,73 @@ class PolicyDAOFactory:
         raise ValueError("Unsupported Policy Type: {0}".format(policy_type))
 
 class QoSMapDefinitionDAO(DefinitionDAO):
-    MODEL = None
+    MODEL = QoSMapDefinition
     RESOURCE = "/dataservice/template/policy/definition/qosmap"
     ID_RESOURCE = RESOURCE + "/{mid}"
+    def resource(self,mid:str=None):
+        if mid:
+            return QoSMapDefinitionDAO.ID_RESOURCE.format(mid=mid)
+        return QoSMapDefinitionDAO.RESOURCE
+    def instance(self,document:dict):
+        return QoSMapDefinition.from_dict(document)
 
 class RewriteRuleDefinitionDAO(DefinitionDAO):
-    MODEL = None
+    MODEL = RewriteRuleDefinition
+    RESOURCE = "/dataservice/template/policy/definition/rewriterule"
+    ID_RESOURCE = RESOURCE + "/{mid}"
+    def resource(self,mid:str=None):
+        if mid:
+            return RewriteRuleDefinitionDAO.ID_RESOURCE.format(mid=mid)
+        return RewriteRuleDefinitionDAO.RESOURCE
+    def instance(self,document:dict):
+        return RewriteRuleDefinition.from_dict(document)
 
 class ACLv4DefinitionDAO(DefinitionDAO):
-    MODEL = None
+    MODEL = ACLv4Definition
+    RESOURCE = "/dataservice/template/policy/definition/acl"
+    ID_RESOURCE = RESOURCE + "/{mid}"
+    def resource(self,mid:str=None):
+        if mid:
+            return ACLv4DefinitionDAO.ID_RESOURCE.format(mid=mid)
+        return ACLv4DefinitionDAO.RESOURCE
+    def instance(self,document:dict):
+        return ACLv4Definition.from_dict(document)
 
 class ACLv6DefinitionDAO(DefinitionDAO):
-    MODEL = None
+    MODEL = ACLv6Definition
+    RESOURCE = "/dataservice/template/policy/definition/aclv6"
+    ID_RESOURCE = RESOURCE + "/{mid}"
+    def resource(self,mid:str=None):
+        if mid:
+            return ACLv6DefinitionDAO.ID_RESOURCE.format(mid=mid)
+        return ACLv6DefinitionDAO.RESOURCE
+    def instance(self,document:dict):
+        return ACLv6Definition.from_dict(document)
 
 class vEdgeRouteDefinitionDAO(DefinitionDAO):
-    MODEL = None
+    MODEL = vEdgeRouteDefinition
+    RESOURCE = "/dataservice/template/policy/definition/vedgeroute"
+    ID_RESOURCE = RESOURCE + "/{mid}"
+    def resource(self,mid:str=None):
+        if mid:
+            return vEdgeRouteDefinitionDAO.ID_RESOURCE.format(mid=mid)
+        return vEdgeRouteDefinitionDAO.RESOURCE
+    def instance(self,document:dict):
+        return vEdgeRouteDefinition.from_dict(document)
+
+class DefinitionDAOFactory:
+    def __init__(self,session:vManageSession):
+        self.session = session
+    @factory_memoization
+    def from_type(self,def_type:DefinitionType):
+        if def_type == DefinitionType.QOS_MAP:
+            return QoSMapDefinitionDAO(self.session)
+        elif def_type == DefinitionType.REWRITE_RULE:
+            return RewriteRuleDefinitionDAO(self.session)
+        elif def_type == DefinitionType.ACLv4:
+            return ACLv4DefinitionDAO(self.session)
+        elif def_type == DefinitionType.ACLv6:
+            return ACLv6DefinitionDAO(self.session)
+        elif def_type == DefinitionType.ROUTE_POLICY:
+            return vEdgeRouteDefinitionDAO(self.session)
+        raise ValueError("Unsupported Definition Type: {0}".format(def_type))

@@ -63,6 +63,21 @@ class TLOCList(List):
 class VPNList(List):
     TYPE = ListType.VPN
 
+class ASPath(List):
+    TYPE = ListType.AS_PATH
+
+class Community(List):
+    TYPE = ListType.COMMUNITY
+
+class ExtendedCommunity(List):
+    TYPE = ListType.EXTENDED_COMMUNITY
+
+class ForwardingClass(List):
+    TYPE = ListType.FORWARDING_CLASS
+
+class Mirror(List):
+    TYPE = ListType.MIRROR
+
 class ListFactory:
     def from_dict(self,document):
         doc_type = ListType(document.get(List.TYPE_FIELD))
@@ -84,4 +99,14 @@ class ListFactory:
             return TLOCList.from_dict(document)
         elif doc_type == ListType.VPN:
             return VPNList.from_dict(document)
+        elif doc_type == ListType.AS_PATH:
+            return ASPath.from_dict(document)
+        elif doc_type == ListType.COMMUNITY:
+            return Community.from_dict(document)
+        elif doc_type == ListType.EXTENDED_COMMUNITY:
+            return ExtendedCommunity.from_dict(document)
+        elif doc_type == ListType.FORWARDING_CLASS:
+            return ForwardingClass.from_dict(document)
+        elif doc_type == ListType.MIRROR:
+            return Mirror.from_dict(document)
         raise ValueError("Unsupported List Type: {0}".format(doc_type))

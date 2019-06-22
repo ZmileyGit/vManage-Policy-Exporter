@@ -79,6 +79,11 @@ class LocalizedSequencedDefinition(SequencedDefinition):
             factory.from_dict(sequence)
             for sequence in self.definition
         )
+    @accumulator(LocalizedReferences)
+    def references(self,accumulator:LocalizedReferences=None):
+        for sequence in self.sequences:
+            sequence.references(accumulator=accumulator)
+        return accumulator
 
 class LocalizedSequenceElement(DefinitionSequenceElement):
     @property
@@ -144,3 +149,12 @@ class vEdgeRouteMatchEntryFactory(DefinitionMatchEntryFactory):
         if field_type == vEdgeRoutePrefixListMatchEntry.TYPE:
             return vEdgeRoutePrefixListMatchEntry(document)
         return super().from_dict(document)
+
+class ACLv4Definition(LocalizedSequencedDefinition):
+    TYPE = DefinitionType.ACLv4
+
+class ACLv6Definition(LocalizedSequencedDefinition):
+    TYPE = DefinitionType.ACLv6
+
+class vEdgeRouteDefinition(LocalizedSequencedDefinition):
+    TYPE = DefinitionType.ROUTE_POLICY

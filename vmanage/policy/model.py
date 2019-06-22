@@ -209,6 +209,7 @@ class DefinitionMatchEntry(HelperModel):
     FIELDTYPE_FIELD = "field"
     VALUE_FIELD = "value"
     REFERENCE_FIELD = "ref"
+    VARIABLE_FIELD = "vipVariableName"
     @property
     def type(self):
         return self.definition.get(DefinitionMatchEntry.FIELDTYPE_FIELD)
@@ -224,12 +225,19 @@ class DefinitionMatchReferenceEntry(DefinitionMatchEntry):
         accumulator.add_by_type(ReferenceType(self.type),self.definition.get(DefinitionMatchEntry.REFERENCE_FIELD))
         return accumulator
 
+class DefinitionMatchVariableEntry(DefinitionMatchEntry):
+    @property
+    def variable_name(self):
+        return self.definition.get(DefinitionMatchEntry.VARIABLE_FIELD)
+
 class DefinitionMatchEntryFactory:
     def from_dict(self,document:dict):
         if document.get(DefinitionMatchEntry.REFERENCE_FIELD):
             return DefinitionMatchReferenceEntry(document)
         elif document.get(DefinitionMatchEntry.VALUE_FIELD):
             return DefinitionMatchValuedEntry(document)
+        elif document.get(DefinitionMatchEntry.VARIABLE_FIELD):
+            return DefinitionMatchVariableEntry(document)
         raise ValueError("Unsupported Match Entry type: {0}".format(document))
 
 class DefinitionActionElement(HelperModel):

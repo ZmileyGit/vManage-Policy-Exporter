@@ -12,6 +12,8 @@ from vmanage.lists.model import List,ApplicationList,ListType
 from vmanage.lists.model import ColorList,DataPrefixList
 from vmanage.lists.model import Policer,PrefixList,SiteList
 from vmanage.lists.model import SLAClass,TLOCList,VPNList
+from vmanage.lists.model import ASPath,Community,ExtendedCommunity
+from vmanage.lists.model import ForwardingClass,Mirror
 
 class ListRequestHandler(JSONRequestHandler):
     def handle_document_condition(self,response:Response,document:dict):
@@ -45,27 +47,46 @@ class ListDAOFactory:
             return TLOCListDAO(self.session)
         elif ref_type == ListType.VPN:
             return VPNListDAO(self.session)
+        elif ref_type == ListType.AS_PATH:
+            return ASPathDAO(self.session)
+        elif ref_type == ListType.COMMUNITY:
+            return CommunityDAO(self.session)
+        elif ref_type == ListType.EXTENDED_COMMUNITY:
+            return ExtendedCommunityDAO(self.session)
+        elif ref_type == ListType.FORWARDING_CLASS:
+            return ForwardingClassDAO(self.session)
+        elif ref_type == ListType.MIRROR:
+            return MirrorDAO(self.session)
         raise ValueError("Unsupported Reference Type {0}".format(ref_type))
-    @factory_memoization
     def from_reference_type(self,ref_type:ReferenceType):
         if ref_type == ReferenceType.APP_LIST:
-            return ApplicationListDAO(self.session)
+            return self.from_type(ListType.APP)
         elif ref_type == ReferenceType.COLOR_LIST:
-            return ColorListDAO(self.session)
+            return self.from_type(ListType.COLOR)
         elif ref_type == ReferenceType.DATA_PREFIX_LIST:
-            return DataPrefixListDAO(self.session)
+            return self.from_type(ListType.DATA_PREFIX)
         elif ref_type == ReferenceType.POLICER:
-            return PolicerDAO(self.session)
+            return self.from_type(ListType.POLICER)
         elif ref_type == ReferenceType.PREFIX_LIST:
-            return PrefixListDAO(self.session)
+            return self.from_type(ListType.PREFIX)
         elif ref_type == ReferenceType.SITE_LIST:
-            return SiteListDAO(self.session)
+            return self.from_type(ListType.SITE)
         elif ref_type == ReferenceType.SLA_CLASS:
-            return SLAClassDAO(self.session)
+            return self.from_type(ListType.SLA)
         elif ref_type == ReferenceType.TLOC_LIST:
-            return TLOCListDAO(self.session)
+            return self.from_type(ListType.TLOC)
         elif ref_type == ReferenceType.VPN_LIST:
-            return VPNListDAO(self.session)
+            return self.from_type(ListType.VPN)
+        elif ref_type == ReferenceType.AS_PATH:
+            return self.from_type(ListType.AS_PATH)
+        elif ref_type == ReferenceType.COMMUNITY:
+            return self.from_type(ListType.COMMUNITY)
+        elif ref_type == ReferenceType.EXTENDED_COMMUNITY:
+            return self.from_type(ListType.EXTENDED_COMMUNITY)
+        elif ref_type == ReferenceType.FORWARDING_CLASS:
+            return self.from_type(ListType.FORWARDING_CLASS)
+        elif ref_type == ReferenceType.MIRROR:
+            return self.from_type(ListType.MIRROR)
         raise ValueError("Unsupported Reference Type {0}".format(ref_type))
 
 class ListDAO(ModelDAO):
@@ -199,3 +220,58 @@ class VPNListDAO(ListDAO):
         return VPNListDAO.RESOURCE
     def instance(self,document:dict):
         return VPNList.from_dict(document)
+
+class ASPathDAO(ListDAO):
+    MODEL = ASPath
+    RESOURCE = "/dataservice/template/policy/list/aspath"
+    ID_RESOURCE = RESOURCE + "/{mid}"
+    def resource(self,mid:str=None):
+        if mid:
+            return ASPathDAO.ID_RESOURCE.format(mid=mid)
+        return ASPathDAO.RESOURCE
+    def instance(self,document:dict):
+        return ASPath.from_dict(document)
+
+class CommunityDAO(ListDAO):
+    MODEL = Community
+    RESOURCE = "/dataservice/template/policy/list/community"
+    ID_RESOURCE = RESOURCE + "/{mid}"
+    def resource(self,mid:str=None):
+        if mid:
+            return CommunityDAO.ID_RESOURCE.format(mid=mid)
+        return CommunityDAO.RESOURCE
+    def instance(self,document:dict):
+        return Community.from_dict(document)
+
+class ExtendedCommunityDAO(ListDAO):
+    MODEL = ExtendedCommunity
+    RESOURCE = "/dataservice/template/policy/list/extcommunity"
+    ID_RESOURCE = RESOURCE + "/{mid}"
+    def resource(self,mid:str=None):
+        if mid:
+            return ExtendedCommunityDAO.ID_RESOURCE.format(mid=mid)
+        return ExtendedCommunityDAO.RESOURCE
+    def instance(self,document:dict):
+        return ExtendedCommunity.from_dict(document)
+
+class ForwardingClassDAO(ListDAO):
+    MODEL = ForwardingClass
+    RESOURCE = "/dataservice/template/policy/list/class"
+    ID_RESOURCE = RESOURCE + "/{mid}"
+    def resource(self,mid:str=None):
+        if mid:
+            return ForwardingClassDAO.ID_RESOURCE.format(mid=mid)
+        return ForwardingClassDAO.RESOURCE
+    def instance(self,document:dict):
+        return ForwardingClass.from_dict(document)
+
+class MirrorDAO(ListDAO):
+    MODEL = Mirror
+    RESOURCE = "/dataservice/template/policy/list/mirror"
+    ID_RESOURCE = RESOURCE + "/{mid}"
+    def resource(self,mid:str=None):
+        if mid:
+            return MirrorDAO.ID_RESOURCE.format(mid=mid)
+        return MirrorDAO.RESOURCE
+    def instance(self,document:dict):
+        return Mirror.from_dict(document)

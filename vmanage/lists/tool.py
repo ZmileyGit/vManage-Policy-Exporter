@@ -10,3 +10,8 @@ class ListType(Enum):
     SLA = "sla"
     TLOC = "tloc"
     VPN = "vpn"
+    AS_PATH = "asPath"
+    COMMUNITY = "community"
+    EXTENDED_COMMUNITY = "extCommunity"
+    FORWARDING_CLASS = "class"
+    MIRROR = "mirror"
