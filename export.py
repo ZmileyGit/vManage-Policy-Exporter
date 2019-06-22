@@ -18,7 +18,7 @@ from vmanage.policy.centralized.model import CflowdDefinition
 from vmanage.policy.centralized.dao import PoliciesDAO
 from vmanage.policy.centralized.tool import CentralizedReferences,CentralizedDefinitions
 from vmanage.policy.centralized.tool import DefinitionType
-from vmanage.policy.centralized.model import GUIPolicy
+from vmanage.policy.centralized.model import CentralizedGUIPolicy
 
 def extract_policies(server,user,password):
     with vManageSession(server) as session:
@@ -32,7 +32,7 @@ def extract_policies(server,user,password):
             global_references = CentralizedReferences()
             report = PolicyExportFormat()
             for policy in policies:
-                if isinstance(policy,GUIPolicy):
+                if isinstance(policy,CentralizedGUIPolicy):
                     definitions = policy.definitions()
                     report.definition_map[policy.id] = definitions.as_list()
                     global_definitions.merge(definitions)

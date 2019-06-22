@@ -58,15 +58,15 @@ class GUIPolicy(Policy):
     def __init__(self,mid:str,name:str,policy_type:str,description:str,definition:dict):
         super().__init__(mid,name,policy_type,description)
         self.definition = definition
-    @abstractproperty
-    def references(self,accumulator:References=None):
-        pass
-    @abstractproperty
+    @abstractmethod
     def definitions(self,accumulator:Definitions=None):
         pass
-    @abstractproperty
+    @property
     def assembly(self):
-        pass
+        return (
+            DefinitionApplication(application)
+            for application in self.definition.get(GUIPolicy.ASSEMBLY_FIELD)
+        )
     def to_dict(self):
         result = super().to_dict()
         result[Policy.DEFINITION_FIELD] = JSONEncoder().encode(self.definition)
@@ -295,7 +295,6 @@ class DefinitionActionReferenceEntry(DefinitionActionEntry):
 
 class DefinitionActionEntryFactory:
     def from_dict(self,document:dict):
-        action_type = document.get(DefinitionActionEntry.FIELDTYPE_FIELD)
         if document.get(DefinitionActionEntry.REFERENCE_FIELD):
             return DefinitionActionReferenceEntry(document)
         elif document.get(DefinitionActionEntry.VALUE_FIELD):

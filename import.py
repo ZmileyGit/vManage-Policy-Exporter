@@ -93,7 +93,7 @@ def main():
     config = Configuration.from_file("./config.json")
     with open(config.file,"rt",encoding=config.encoding) as raw_report:
         json_report = json.load(raw_report)
-        report = PolicyExportFormat.from_dict(json_report)
-        insert_policies(report,config.server,config.username,config.password)
+        report = PolicyExportFormat.from_dict(json_report,PolicyFactory(),DefinitionFactory())
+        insert_policies(report,config.server,config.username,config.password,rollback=True)
 
 main()

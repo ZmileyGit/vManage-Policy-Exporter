@@ -1,5 +1,5 @@
-from vmanage.policy.centralized.model import DefinitionFactory,PolicyFactory
 from vmanage.lists.model import ListFactory
+from vmanage.entity import ModelFactory
 from re import Match
 
 class PolicyExportFormat:
@@ -25,15 +25,13 @@ class PolicyExportFormat:
     def __str__(self):
         return str(vars(self))
     @staticmethod
-    def from_dict(document:dict):
+    def from_dict(document:dict,policy_factory:ModelFactory,def_factory:ModelFactory):
         report = PolicyExportFormat()
 
         raw_policies = document.get(PolicyExportFormat.POLICIES_FIELD,[])
-        policy_factory = PolicyFactory()
         report.policies.update(policy_factory.from_dict(policy) for policy in raw_policies)
 
         raw_definitions = document.get(PolicyExportFormat.DEFINITIONS_FIELD,[])
-        def_factory = DefinitionFactory()
         report.definitions.update(def_factory.from_dict(definition) for definition in raw_definitions)
 
         raw_references = document.get(PolicyExportFormat.REFERENCES_FIELD,[])

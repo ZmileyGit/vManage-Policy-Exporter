@@ -1,73 +1,46 @@
 from json import JSONDecoder
 
 from requests import Response
-from abc import abstractmethod
 
 from vmanage.auth import vManageSession
 from vmanage.tool import JSONRequestHandler,APIListRequestHandler,APIErrorRequestHandler
 from vmanage.tool import HTTPCodeRequestHandler
-from vmanage.dao import CollectionDAO,ModelDAO
-from vmanage.error import CodedAPIError
+from vmanage.dao import CollectionDAO
 
-from vmanage.policy.tool import factory_memoization
+from vmanage.policy.dao import PolicyDAO,DefinitionDAO,PolicyRequestHandler
+from vmanage.policy.tool import factory_memoization,PolicyType
+from vmanage.policy.model import CLIPolicy
 
 from vmanage.policy.centralized.tool import DefinitionType
-from vmanage.policy.centralized.model import PolicyFactory,Policy,PolicyType
-from vmanage.policy.centralized.model import CLIPolicy,GUIPolicy
+from vmanage.policy.centralized.model import PolicyFactory,Policy,CentralizedGUIPolicy
 from vmanage.policy.centralized.model import Definition,HubNSpokeDefinition
 from vmanage.policy.centralized.model import MeshDefinition,ControlDefinition
 from vmanage.policy.centralized.model import VPNMembershipDefinition,AppRouteDefinition
 from vmanage.policy.centralized.model import DataDefinition,CflowdDefinition
 
-class PolicyDAO(ModelDAO):
-    MAX_FORCE_ATTEMPTS = 10
-    DUPLICATE_POLICY_NAME_CODE = "POLICY0001"
+class CentralizedPolicyDAO(PolicyDAO):
     RESOURCE = "/dataservice/template/policy/vsmart"
     ID_RESOURCE = RESOURCE + "/{mid}"
     DETAIL_RESOURCE = RESOURCE + "/definition/{mid}"
     def resource(self,mid:str=None):
         if mid:
-            return PolicyDAO.ID_RESOURCE.format(mid=mid)
-        return PolicyDAO.RESOURCE
+            return CentralizedPolicyDAO.ID_RESOURCE.format(mid=mid)
+        return CentralizedPolicyDAO.RESOURCE
     def get_by_id(self,mid:str):
-        url = self.session.server.url(PolicyDAO.DETAIL_RESOURCE.format(mid=mid))
+        url = self.session.server.url(CentralizedPolicyDAO.DETAIL_RESOURCE.format(mid=mid))
         response = self.session.get(url)
         document = PolicyRequestHandler(next_handler=APIErrorRequestHandler()).handle(response)
         return self.instance(document)
-    def create(self,policy:Policy):
-        url = self.session.server.url(self.resource())
-        payload = policy.to_dict()
-        del payload[Policy.ID_FIELD]
-        response = self.session.post(url,json=payload)
-        HTTPCodeRequestHandler(200,next_handler=APIErrorRequestHandler()).handle(response)
-        policy.id = None
-        return policy
-    def force_create(self,model:Policy,max_attempts=MAX_FORCE_ATTEMPTS):
-        original = model.to_dict()
-        attempt = True
-        count = 1
-        while attempt and count <= max_attempts:
-            try:
-                model = self.create(model)
-            except CodedAPIError as error:
-                attempt = error.error.code == PolicyDAO.DUPLICATE_POLICY_NAME_CODE
-                if not attempt or count == max_attempts:
-                    raise
-                model.name = "-{attempt}-{name}".format(attempt=count,name=original[Policy.NAME_FIELD])
-                count += 1
-            else:
-                attempt = False
-        return model
 
-class CLIPolicyDAO(PolicyDAO):
+class CentralizedCLIPolicyDAO(CentralizedPolicyDAO):
     MODEL = CLIPolicy
     def instance(self,document:dict):
         return CLIPolicy.from_dict(document)
 
-class GUIPolicyDAO(PolicyDAO):
-    MODEL = GUIPolicy
+class CentralizedGUIPolicyDAO(CentralizedPolicyDAO):
+    MODEL = CentralizedGUIPolicy
     def instance(self,document:dict):
-        return GUIPolicy.from_dict(document)
+        return CentralizedGUIPolicy.from_dict(document)
     def create(self,policy:Policy):
         url = self.session.server.url(self.resource())
         payload = policy.to_dict()
@@ -77,7 +50,6 @@ class GUIPolicyDAO(PolicyDAO):
         HTTPCodeRequestHandler(200,next_handler=APIErrorRequestHandler()).handle(response)
         policy.id = None
         return policy
-    
 
 class PolicyDAOFactory:
     def __init__(self,session:vManageSession):
@@ -85,14 +57,10 @@ class PolicyDAOFactory:
     @factory_memoization
     def from_type(self,policy_type:PolicyType):
         if policy_type == PolicyType.CLI:
-            return CLIPolicyDAO(self.session)
+            return CentralizedCLIPolicyDAO(self.session)
         elif policy_type == PolicyType.FEATURE:
-            return GUIPolicyDAO(self.session)
+            return CentralizedGUIPolicyDAO(self.session)
         raise ValueError("Unsupported Policy Type: {0}".format(policy_type))
-
-class PolicyRequestHandler(JSONRequestHandler):
-    def handle_document_condition(self,response:Response,document:dict):
-        return Policy.ID_FIELD in document
 
 class PoliciesDAO(CollectionDAO):
     RESOURCE = "/dataservice/template/policy/vsmart"
@@ -127,48 +95,6 @@ class DefinitionDAOFactory:
             return DataDefinitionDAO(self.session)
         elif definition_type == CflowdDefinition.TYPE:
             return CflowdDefinitionDAO(self.session)
-
-class DefinitionRequestHandler(JSONRequestHandler):
-    def handle_document_condition(self,response:Response,document:dict):
-        return Definition.ID_FIELD in document
-
-class DefinitionCreationRequestHandler(DefinitionRequestHandler):
-    def handle_document_condition(self,response:Response,document:dict):
-        is_definition = super().handle_document_condition(response,document)
-        return is_definition and response.status_code == 200
-
-class DefinitionDAO(ModelDAO):
-    MAX_FORCE_ATTEMPTS = 10
-    DUPLICATE_DEFINITION_NAME_CODE = "POLICY0001"
-    def get_by_id(self,mid:str):
-        url = self.session.server.url(self.resource(mid=mid))
-        response = self.session.get(url)
-        document = DefinitionRequestHandler(next_handler=APIErrorRequestHandler()).handle(response)
-        return self.instance(document)
-    def create(self,model:Definition):
-        url = self.session.server.url(self.resource())
-        payload = model.to_dict()
-        del payload[Definition.ID_FIELD]
-        response = self.session.post(url,json=payload)
-        document = DefinitionCreationRequestHandler(next_handler=APIErrorRequestHandler()).handle(response)
-        model.id = document[Definition.ID_FIELD]
-        return model
-    def force_create(self,model:Definition,max_attempts=MAX_FORCE_ATTEMPTS):
-        original = model.to_dict()
-        attempt = True
-        count = 1
-        while attempt and count <= max_attempts:
-            try:
-                model = self.create(model)
-            except CodedAPIError as error:
-                attempt = error.error.code == DefinitionDAO.DUPLICATE_DEFINITION_NAME_CODE
-                if not attempt or count == max_attempts:
-                    raise
-                model.name = "-{attempt}-{name}".format(attempt=count,name=original[Definition.NAME_FIELD])
-                count += 1
-            else:
-                attempt = False
-        return model
 
 class HubNSpokeDefinitionDAO(DefinitionDAO):
     MODEL = HubNSpokeDefinition

@@ -14,6 +14,11 @@ class ReferenceType(Enum):
     DEST_DATA_PREFIX_LIST = "destinationDataPrefixList"
     SLA_CLASS = "slaClass"
     POLICER = "policer"
+    FORWARDING_CLASS = "class"
+    MIRROR = "mirror"
+    AS_PATH = "asPath"
+    COMMUNITY = "community"
+    EXTENDED_COMMUNITY = "extCommunity"
 
 class PolicyType(Enum):
     CLI = "cli"
@@ -27,6 +32,11 @@ class DefinitionType(Enum):
     APP_ROUTE = "appRoute"
     DATA = "data"
     CFLOWD = "cflowd"
+    QOS_MAP = "qosMap"
+    REWRITE_RULE = "rewriteRule"
+    ACLv4 = "acl"
+    ACLv6 = "aclv6"
+    ROUTE_POLICY = "vedgeRoute"
 
 class References:
     def __init__(

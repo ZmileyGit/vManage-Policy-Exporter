@@ -322,7 +322,7 @@ class DataDefinition(CentralizedSequencedDefinition):
 class CflowdDefinition(CommonDefinition):
     TYPE = DefinitionType.CFLOWD
 
-class DefinitionFactory:
+class DefinitionFactory(ModelFactory):
     def from_dict(self,document:dict):
         doc_type = DefinitionType(document.get(Definition.TYPE_FIELD))
         if doc_type == DefinitionType.HUB_N_SPOKE:

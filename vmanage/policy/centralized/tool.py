@@ -2,7 +2,6 @@ from enum import Enum
 
 from vmanage.policy.tool import References,ReferenceType,DefinitionType
 from vmanage.policy.tool import Definitions
-from vmanage.lists.model import ListFactory
 
 class CentralizedReferences(References):
     def __init__(
@@ -26,12 +25,12 @@ class CentralizedReferences(References):
         self.vpn_lists = set() if vpn_lists is None else vpn_lists
     def as_list(self):
         references = super().as_list()
-        references.extend([(ReferenceType.APP_LIST.value,app_list) for app_list in self.application_lists])
-        references.extend([(ReferenceType.COLOR_LIST.value,color_list) for color_list in self.color_lists])
-        references.extend([(ReferenceType.SITE_LIST.value,site_list) for site_list in self.site_lists])
-        references.extend([(ReferenceType.SLA_CLASS.value,sla_class) for sla_class in self.sla_classes])
-        references.extend([(ReferenceType.TLOC_LIST.value,tloc_list) for tloc_list in self.tloc_lists])
-        references.extend([(ReferenceType.VPN_LIST.value,vpn_list) for vpn_list in self.vpn_lists])
+        references.extend((ReferenceType.APP_LIST.value,app_list) for app_list in self.application_lists)
+        references.extend((ReferenceType.COLOR_LIST.value,color_list) for color_list in self.color_lists)
+        references.extend((ReferenceType.SITE_LIST.value,site_list) for site_list in self.site_lists)
+        references.extend((ReferenceType.SLA_CLASS.value,sla_class) for sla_class in self.sla_classes)
+        references.extend((ReferenceType.TLOC_LIST.value,tloc_list) for tloc_list in self.tloc_lists)
+        references.extend((ReferenceType.VPN_LIST.value,vpn_list) for vpn_list in self.vpn_lists)
         return references
     def merge(self,source):
         super().merge(source)
