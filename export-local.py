@@ -24,7 +24,7 @@ def extract_localized_policies(session:vManageSession):
             definitions = policy.definitions()
             report.definition_map[policy.id] = definitions.as_list()
             global_definitions.merge(definitions)
-        report.definitions.add(policy)
+        report.policies.add(policy)
     
     print("Retrieving Definitions...")
     def_factory = DefinitionDAOFactory(session)

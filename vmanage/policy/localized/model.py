@@ -1,5 +1,6 @@
 from vmanage.entity import ModelFactory,HelperModel
 
+from vmanage.policy.model import Definition
 from vmanage.policy.model import Policy,GUIPolicy,CLIPolicy
 from vmanage.policy.model import CommonDefinition,SequencedDefinition
 from vmanage.policy.model import DefinitionSequenceElement
@@ -158,3 +159,18 @@ class ACLv6Definition(LocalizedSequencedDefinition):
 
 class vEdgeRouteDefinition(LocalizedSequencedDefinition):
     TYPE = DefinitionType.ROUTE_POLICY
+
+class DefinitionFactory(ModelFactory):
+    def from_dict(self,document:dict):
+        doc_type = DefinitionType(document.get(Definition.TYPE_FIELD))
+        if doc_type == DefinitionType.QOS_MAP:
+            return QoSMapDefinition.from_dict(document)
+        elif doc_type == DefinitionType.REWRITE_RULE:
+            return RewriteRuleDefinition.from_dict(document)
+        elif doc_type == DefinitionType.ACLv4:
+            return ACLv4Definition.from_dict(document)
+        elif doc_type == DefinitionType.ACLv6:
+            return ACLv6Definition.from_dict(document)
+        elif doc_type == DefinitionType.ROUTE_POLICY:
+            return vEdgeRouteDefinition.from_dict(document)
+        raise ValueError("Unsupported Definition Type: {0}".format(doc_type))

@@ -1,9 +1,11 @@
 from requests import Response
+from json import JSONDecoder
 
 from vmanage.auth import vManageSession
 from vmanage.dao import ModelDAO,CollectionDAO
-from vmanage.tool import APIListRequestHandler,APIErrorRequestHandler
+from vmanage.tool import APIListRequestHandler,APIErrorRequestHandler,HTTPCodeRequestHandler
 
+from vmanage.policy.model import Policy
 from vmanage.policy.dao import PolicyDAO,DefinitionDAO,PolicyRequestHandler
 from vmanage.policy.tool import PolicyType,DefinitionType,factory_memoization
 
@@ -50,6 +52,15 @@ class LocalizedGUIPolicyDAO(LocalizedPolicyDAO):
     MODEL = LocalizedGUIPolicy
     def instance(self,document:dict):
         return LocalizedGUIPolicy.from_dict(document)
+    def create(self,policy:Policy):
+        url = self.session.server.url(self.resource())
+        payload = policy.to_dict()
+        payload[Policy.DEFINITION_FIELD] = JSONDecoder().decode(payload[Policy.DEFINITION_FIELD])
+        del payload[Policy.ID_FIELD]
+        response = self.session.post(url,json=payload)
+        HTTPCodeRequestHandler(200,next_handler=APIErrorRequestHandler()).handle(response)
+        policy.id = None
+        return policy
 
 class PolicyDAOFactory:
     def __init__(self,session:vManageSession):

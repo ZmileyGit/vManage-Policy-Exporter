@@ -9,9 +9,9 @@ from vmanage.error import CodedAPIError
 from vmanage.scripts.tool import PolicyExportFormat,PolicyImportReport,map_sub
 from vmanage.lists.dao import ListDAOFactory
 
-from vmanage.policy.centralized.model import DefinitionFactory,PolicyFactory
-from vmanage.policy.centralized.dao import DefinitionDAOFactory,PolicyDAOFactory
-from vmanage.policy.centralized.dao import PoliciesDAO
+from vmanage.policy.localized.model import DefinitionFactory,PolicyFactory
+from vmanage.policy.localized.dao import DefinitionDAOFactory,PolicyDAOFactory
+from vmanage.policy.localized.dao import PoliciesDAO
 
 def insert_policies(report:PolicyExportFormat,session:vManageSession,rollback=False):
     imports = PolicyImportReport()
