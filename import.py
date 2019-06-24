@@ -17,72 +17,108 @@ def insert_policies(report:PolicyExportFormat,session:vManageSession,rollback=Fa
     imports = PolicyImportReport()
     originals = report.to_dict()
     list_dao_fac = ListDAOFactory(session)
-    for reference in report.references:
+
+    print("Creating References...")
+    ref_count = len(report.references)
+    ref_error = False
+    for count,reference in enumerate(report.references):
         ref_dao = list_dao_fac.from_type(reference.type)
         old_id = reference.id
-        print("Creating List...")
-        ref_dao.force_create(reference)
-        imports.references.add(reference)
-        imports.reference_map[old_id] = reference.id
-        print(reference)
+        try:
+            ref_dao.force_create(reference)
+        except CodedAPIError as error:
+            ref_error = True
+            print("{0}({1}): {2}".format(error.error.code,error.error.message,error.error.details))
+        else:
+            imports.references.add(reference)
+            imports.reference_map[old_id] = reference.id
+        finally:
+            print("[{count}/{total}] {reference}".format(count=count + 1,total=ref_count,reference=reference))
 
+    if not ref_error:
+        definitions_str = json.JSONEncoder().encode(originals[PolicyExportFormat.DEFINITIONS_FIELD])
+        list_regex = re.compile("({0})".format("|".join(imports.reference_map.keys())))
+        new_definitions_str = re.sub(list_regex,map_sub(imports.reference_map),definitions_str)
+        new_definitions_json = json.JSONDecoder().decode(new_definitions_str)
+        def_fac = DefinitionFactory()
+        imports.definitions.update(def_fac.from_dict(document) for document in new_definitions_json)
 
-    definitions_str = json.JSONEncoder().encode(originals[PolicyExportFormat.DEFINITIONS_FIELD])
-    list_regex = re.compile("({0})".format("|".join(imports.reference_map.keys())))
-    new_definitions_str = re.sub(list_regex,map_sub(imports.reference_map),definitions_str)
-    new_definitions_json = json.JSONDecoder().decode(new_definitions_str)
-    def_fac = DefinitionFactory()
-    imports.definitions.update(def_fac.from_dict(document) for document in new_definitions_json)
-
-    def_dao_fac = DefinitionDAOFactory(session)
-    for definition in imports.definitions:
-        def_dao = def_dao_fac.from_type(definition.type)
-        old_id = definition.id
-        print("Creating Definition...")
-        def_dao.force_create(definition)
-        imports.definition_map[old_id] = definition.id
-        print(definition)
-
-    policies_str = json.JSONEncoder().encode(originals[PolicyExportFormat.POLICIES_FIELD])
-    new_policies_str = re.sub(list_regex,map_sub(imports.reference_map),policies_str)
-    def_regex = "({0})".format("|".join(imports.definition_map.keys()))
-    new_policies_str = re.sub(def_regex,map_sub(imports.definition_map),new_policies_str)
-    new_policies_json = json.JSONDecoder().decode(new_policies_str)
-    policy_fac = PolicyFactory()
-    imports.policies.update(policy_fac.from_dict(document) for document in new_policies_json)
-
-    policy_dao_fac = PolicyDAOFactory(session)
-    for policy in imports.policies:
-        policy_dao = policy_dao_fac.from_type(policy.type)
-        old_id = policy.id
-        print("Creating Policy...")
-        policy_dao.force_create(policy)
-        print(policy)
-
-    policies_dao = PoliciesDAO(session)
-    name_id_map = {}
-    for policy in policies_dao.get_all():
-        name_id_map[policy.name] = policy.id
-
-    for policy in imports.policies:
-        policy.id = name_id_map[policy.name]
-        print(policy)
-
-    if rollback:
-        for policy in imports.policies:
-            policy_dao = policy_dao_fac.from_type(policy.type)
-            print("Deleting policy...")
-            print(policy_dao.delete(policy.id))
-
-        for definition in imports.definitions:
+        def_dao_fac = DefinitionDAOFactory(session)
+        print("Creating Definitions...")
+        def_count = len(imports.definitions)
+        def_error = False
+        for count,definition in enumerate(imports.definitions):
             def_dao = def_dao_fac.from_type(definition.type)
-            print("Deleting Definition...")
-            print(def_dao.delete(definition.id))
+            old_id = definition.id
+            try:
+                def_dao.force_create(definition)
+            except CodedAPIError as error:
+                def_error = True
+                print("{0}({1}): {2}".format(error.error.code,error.error.message,error.error.details))
+            else:
+                imports.definition_map[old_id] = definition.id
+            finally:
+                print("[{count}/{total}] {defi}".format(count=count + 1,total=def_count,defi=definition))
 
-        for reference in imports.references:
+        if not def_error:
+            policies_str = json.JSONEncoder().encode(originals[PolicyExportFormat.POLICIES_FIELD])
+            new_policies_str = re.sub(list_regex,map_sub(imports.reference_map),policies_str)
+            def_regex = "({0})".format("|".join(imports.definition_map.keys()))
+            new_policies_str = re.sub(def_regex,map_sub(imports.definition_map),new_policies_str)
+            new_policies_json = json.JSONDecoder().decode(new_policies_str)
+            policy_fac = PolicyFactory()
+            imports.policies.update(policy_fac.from_dict(document) for document in new_policies_json)
+
+            print("Creating Policies...")
+            policy_dao_fac = PolicyDAOFactory(session)
+            poli_count = len(imports.policies)
+            poli_error = False
+            for count,policy in enumerate(imports.policies):
+                policy_dao = policy_dao_fac.from_type(policy.type)
+                old_id = policy.id
+                try:
+                    policy_dao.force_create(policy)
+                except CodedAPIError as error:
+                    poli_error = True
+                    print("{0}({1}): {2}".format(error.error.code,error.error.message,error.error.details))
+                finally:
+                    print("[{count}/{total}] {poli}".format(count=count + 1,total=poli_count,poli=policy))
+
+            if not poli_error:
+                policies_dao = PoliciesDAO(session)
+                name_id_map = {}
+                for policy in policies_dao.get_all():
+                    name_id_map[policy.name] = policy.id
+
+                for policy in imports.policies:
+                    policy.id = name_id_map[policy.name]
+                    print(policy)
+
+    rollback = rollback or ref_error or def_error or poli_error
+    if rollback:
+        print("Deleting policies...")
+        poli_count = len(imports.policies)
+        for count,policy in enumerate(imports.policies):
+            policy_dao = policy_dao_fac.from_type(policy.type)
+            print("[{count}/{total}] {reference}".format(count=count + 1,total=ref_count,reference=reference))
+            if policy.id:  
+                print(policy_dao.delete(policy.id))
+
+        print("Deleting definitions...")
+        def_count = len(imports.definitions)
+        for count,definition in enumerate(imports.definitions):
+            def_dao = def_dao_fac.from_type(definition.type)
+            print("[{count}/{total}] {defi}".format(count=count + 1,total=def_count,defi=definition))
+            if definition.id:
+                print(def_dao.delete(definition.id))
+
+        print("Deleting lists...")
+        ref_count = len(imports.references)
+        for count,reference in enumerate(imports.references):
             ref_dao = list_dao_fac.from_type(reference.type)
-            print("Deleting List '{0}'...".format(reference.id))
-            print(ref_dao.delete(reference.id))
+            print("[{count}/{total}] {reference}".format(count=count + 1,total=ref_count,reference=reference))
+            if reference.id:
+                print(ref_dao.delete(reference.id))
         
     return imports
 

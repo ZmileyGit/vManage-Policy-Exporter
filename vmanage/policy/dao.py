@@ -27,6 +27,7 @@ class DefinitionDAO(ModelDAO):
         return self.instance(document)
     def create(self,model:Definition):
         url = self.session.server.url(self.resource())
+        model.id = None
         payload = model.to_dict()
         del payload[Definition.ID_FIELD]
         response = self.session.post(url,json=payload)
@@ -61,10 +62,10 @@ class PolicyDAO(ModelDAO):
         pass
     def create(self,policy:Policy):
         url = self.session.server.url(self.resource())
+        policy.id = None
         payload = policy.to_dict()
         del payload[Policy.ID_FIELD]
         response = self.session.post(url,json=payload)
-        policy.id = None
         HTTPCodeRequestHandler(200,next_handler=APIErrorRequestHandler()).handle(response)
         return policy
     def force_create(self,model:Policy,max_attempts=MAX_FORCE_ATTEMPTS):
@@ -77,11 +78,7 @@ class PolicyDAO(ModelDAO):
             except CodedAPIError as error:
                 attempt = error.error.code == PolicyDAO.DUPLICATE_POLICY_NAME_CODE
                 if not attempt or count == max_attempts:
-                    print(model.to_dict())
-                    print(error.error.message)
-                    print(error.error.details)
-                    print(error.error.code)
-                    attempt = False
+                    raise
                 model.name = "-{attempt}-{name}".format(attempt=count,name=original[Policy.NAME_FIELD])
                 count += 1
             else:

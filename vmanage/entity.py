@@ -38,11 +38,11 @@ class Model(ABC):
     def __init__(self,mid:str):
         self.id = mid
     def __repr__(self):
-        return "{0} : {1}".format(type(self),vars(self))
+        return "{klass} : {vars}".format(klass=type(self),vars=vars(self))
     def __hash__(self):
         return hash(self.id)
     def __eq__(self,other):
-        return isinstance(other,Model) and self.id == other.id
+        return isinstance(other,type(self)) and self.id == other.id
     @abstractmethod
     def to_dict(self):
         pass

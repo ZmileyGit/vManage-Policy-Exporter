@@ -19,7 +19,11 @@ def extract_localized_policies(session:vManageSession):
     global_definitions = LocalizedDefinitions()
     global_references = LocalizedReferences()
     report = PolicyExportFormat()
-    for policy in policies:
+
+    policy_count = len(policies)
+    print("Retrieving Localized Polices...")
+    for count,policy in enumerate(policies):
+        print("[{count}/{total}] {policy}".format(count=count + 1,total=policy_count,policy=policy))
         if isinstance(policy,LocalizedGUIPolicy):
             definitions = policy.definitions()
             report.definition_map[policy.id] = definitions.as_list()
@@ -28,16 +32,24 @@ def extract_localized_policies(session:vManageSession):
     
     print("Retrieving Definitions...")
     def_factory = DefinitionDAOFactory(session)
-    for definition_id in global_definitions.as_list():
+    def_list = global_definitions.as_list()
+    def_count = len(def_list)
+    for count,definition_id in enumerate(def_list):
         definition = def_factory.from_type(DefinitionType(definition_id[0])).get_by_id(definition_id[1])
+        print("[{count}/{total}] {defi}".format(count=count + 1,total=def_count,defi=definition))
         if not isinstance(definition,QoSMapDefinition):
-            definition.references(accumulator=global_references)
+            references = definition.references(accumulator=LocalizedReferences())
+            report.reference_map[definition.id] = references.as_list()
+            global_references.merge(references)
         report.definitions.add(definition)
 
     print("Retrieving References...")
     ref_factory = ListDAOFactory(session)
-    for ref_id in global_references.as_list():
+    ref_list = global_references.as_list()
+    ref_count = len(ref_list)
+    for count,ref_id in enumerate(ref_list):
         listd = ref_factory.from_reference_type(ReferenceType(ref_id[0])).get_by_id(ref_id[1])
+        print("[{count}/{total}] {lst}".format(count=count + 1,total=ref_count,lst=listd))
         report.references.add(listd)
     
     return report

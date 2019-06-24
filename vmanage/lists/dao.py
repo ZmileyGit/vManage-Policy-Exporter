@@ -99,6 +99,7 @@ class ListDAO(ModelDAO):
         return self.instance(document)
     def create(self,model:List):
         url = self.session.server.url(self.resource())
+        model.id = None
         payload = model.to_dict()
         del payload[List.ID_FIELD]
         response = self.session.post(url,json=payload)

@@ -25,6 +25,8 @@ class List(Model):
             List.DESCRIPTION_FIELD : self.description,
             List.ENTRIES_FIELD : self.entries
         }
+    def __str__(self):
+        return "{mid}({list_type}) -> '{name}'".format(mid=self.id,list_type=self.type,name=self.name)
     @classmethod
     def from_dict(klass,document:dict):
         mid = document.get(List.ID_FIELD)

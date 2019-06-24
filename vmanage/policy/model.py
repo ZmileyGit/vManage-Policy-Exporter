@@ -29,7 +29,7 @@ class Policy(Model):
             Policy.DESCRIPTION_FIELD : self.description
         }
     def __str__(self):
-        return "{mid} -> '{name}'".format(mid=self.id,name=self.name)
+        return "{mid}({policy_type}) -> '{name}'".format(mid=self.id,policy_type=self.type,name=self.name)
 
 class CLIPolicy(Policy):
     TYPE = PolicyType.CLI
@@ -109,7 +109,7 @@ class Definition(Model):
             Definition.DESCRIPTION_FIELD : self.description
         }
     def __str__(self):
-        return "{mid} -> '{name}'".format(mid=self.id,name=self.name)
+        return "{mid}({def_type}) -> '{name}'".format(mid=self.id,def_type=self.type,name=self.name)
 
 class CommonDefinition(Definition):
     DEFINITION_FIELD = "definition"
