@@ -109,5 +109,3 @@ class CentralizedDefinitions(Definitions):
             self.cflowd.add(definition)
         else:
             raise ValueError("Unsupported Definition Type: {0}".format(def_type))
-    def __str__(self):
-        return str(vars(self))
