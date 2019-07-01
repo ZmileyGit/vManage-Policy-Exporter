@@ -3,7 +3,7 @@ Tool for exporting and importing Centralized and Localized policies to/from a Ci
 ## Getting started
 These instructions will help you getting up and running with the script's functionalities.
 ### Prerequisites
-Validate that you are using a release of Python 3.
+Validate that you are using a release of Python 3.7 or higher.
 ```
 python -V
 ```
