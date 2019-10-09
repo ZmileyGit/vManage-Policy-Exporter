@@ -2,10 +2,12 @@ import re
 
 from requests import Session,Response
 from vmanage.entity import Server
-from vmanage.tool import RequestHandler
+from vmanage.tool import RequestHandler,HTTPCodeRequestHandler
 
 class vManageSession(Session):
     LOGIN_RESOURCE = "/j_security_check"
+    CSRF_TOKEN_RESOURCE = "/dataservice/client/token"
+    CSRF_HEADER = "X-XSRF-TOKEN"
     LOGOUT_RESOURCE = "/logout"
     def __init__(self,server:Server):
         super().__init__()
@@ -20,11 +22,31 @@ class vManageSession(Session):
         }
         url = self.server.url(vManageSession.LOGIN_RESOURCE)
         response = self.post(url,data=payload,verify=self.server.secure,allow_redirects=False)
-        return SuccessfulLoginHandler().handle(response)
+        self.login = SuccessfulLoginHandler().handle(response)
+        self.login = self.login and self.update_token()
+        return self.login
+    def update_token(self):
+        if self.login:
+            url = self.server.url(vManageSession.CSRF_TOKEN_RESOURCE)
+            response = self.get(url,verify=self.server.secure,allow_redirects=False)
+            token = TokenHandler().handle(response)
+            if token is not None and len(token):
+                token = token.strip()
+                self.headers[vManageSession.CSRF_HEADER] = token
+            return token is not None
+        return False
     def logout(self):
         url = self.server.url(vManageSession.LOGOUT_RESOURCE)
         response = self.get(url,verify=self.server.secure,allow_redirects=False)
         return LogoutHandler().handle(response)
+
+class TokenHandler(HTTPCodeRequestHandler):
+    def __init__(self):
+        super().__init__(200)
+    def handle_response(self, response):
+        return response.text
+    def unhandled_behavior(self,response):
+        return "" if response.status_code == 404 else None
 
 class SuccessfulLoginHandler(RequestHandler):
     def handle_condition(self,response:Response):
